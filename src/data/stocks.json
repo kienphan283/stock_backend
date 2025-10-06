@@ -1,0 +1,63 @@
+[
+  {
+    "ticker": "AAPL",
+    "name": "Apple Inc.",
+    "price": 185.64,
+    "sector": "Technology"
+  },
+  {
+    "ticker": "GOOGL",
+    "name": "Alphabet Inc.",
+    "price": 138.21,
+    "sector": "Technology"
+  },
+  {
+    "ticker": "MSFT",
+    "name": "Microsoft Corporation",
+    "price": 378.85,
+    "sector": "Technology"
+  },
+  {
+    "ticker": "TSLA",
+    "name": "Tesla, Inc.",
+    "price": 248.50,
+    "sector": "Automotive"
+  },
+  {
+    "ticker": "AMZN",
+    "name": "Amazon.com, Inc.",
+    "price": 151.94,
+    "sector": "E-commerce"
+  },
+  {
+    "ticker": "JPM",
+    "name": "JPMorgan Chase & Co.",
+    "price": 168.75,
+    "sector": "Financial Services"
+  },
+  {
+    "ticker": "JNJ",
+    "name": "Johnson & Johnson",
+    "price": 156.89,
+    "sector": "Healthcare"
+  },
+  {
+    "ticker": "V",
+    "name": "Visa Inc.",
+    "price": 245.32,
+    "sector": "Financial Services"
+  },
+  {
+    "ticker": "PG",
+    "name": "Procter & Gamble",
+    "price": 152.45,
+    "sector": "Consumer Goods"
+  },
+  {
+    "ticker": "UNH",
+    "name": "UnitedHealth Group",
+    "price": 542.18,
+    "sector": "Healthcare"
+  }
+]
+
