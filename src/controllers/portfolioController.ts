@@ -6,7 +6,7 @@ export class PortfolioController {
   static async getPortfolio(req: Request, res: Response) {
     try {
       const portfolio = DataService.getPortfolio()
-      const stocks = DataService.getAllStocks()
+      const stocks = await DataService.getAllStocks() // Added await here
       const portfolioWithValues = DataService.calculatePortfolioValue(portfolio, stocks)
 
       const response: ApiResponse<typeof portfolioWithValues> = {

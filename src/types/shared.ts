@@ -23,13 +23,15 @@ export interface PortfolioItem {
 }
 
 export interface DividendEvent {
-  id: string;
+  id?: string;
   ticker: string;
   companyName: string;
   exDate: string;
   payDate: string;
   amount: number;
-  frequency: string;
+  frequency?: string;
+  sector?: string;
+  yield?: number;
 }
 
 export interface ApiResponse<T = any> {
