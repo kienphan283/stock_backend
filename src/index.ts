@@ -1,35 +1,138 @@
+/**
+ * Application Entry Point
+ * Initializes and starts the Express server with Dependency Injection
+ */
+
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-import morgan from "morgan";
-import apiRoutes from "./routes";
+import { config } from "./infrastructure/config";
+import { logger } from "./utils";
 
-const app = express();
-const PORT = process.env.PORT || 5000;
+// Infrastructure Layer
+import {
+  PythonFinancialClient,
+  MockPortfolioRepository,
+} from "./infrastructure";
 
-// CORS configuration for frontend on port 3000
-app.use(
-  cors({
-    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
-    credentials: true,
-  })
-);
+// Core Layer (Services)
+import {
+  StockService,
+  PortfolioService,
+  DividendService,
+} from "./core/services";
 
-app.use(
-  helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" },
-  })
-);
+// API Layer (Controllers & Routes)
+import {
+  StockController,
+  PortfolioController,
+  DividendController,
+} from "./api/controllers";
+import { createApiRoutes } from "./api/routes";
+import {
+  errorHandler,
+  notFoundHandler,
+  requestLogger,
+} from "./api/middlewares";
 
-app.use(morgan("combined"));
-app.use(express.json());
+/**
+ * Dependency Injection Container
+ * Manually wires up all dependencies
+ */
+class Container {
+  // Infrastructure
+  public readonly financialClient = new PythonFinancialClient();
+  public readonly portfolioRepository = new MockPortfolioRepository();
 
-app.use("/api", apiRoutes);
+  // Services
+  public readonly stockService = new StockService(this.financialClient);
+  public readonly portfolioService = new PortfolioService(
+    this.portfolioRepository
+  );
+  public readonly dividendService = new DividendService(this.financialClient);
 
-app.get("/health", (req, res) => {
-  res.json({ status: "OK", timestamp: new Date().toISOString() });
-});
+  // Controllers
+  public readonly stockController = new StockController(this.stockService);
+  public readonly portfolioController = new PortfolioController(
+    this.portfolioService,
+    this.stockService
+  );
+  public readonly dividendController = new DividendController(
+    this.dividendService
+  );
+}
 
-app.listen(PORT, () => {
-  console.log(`Backend server running on port ${PORT}`);
-});
+/**
+ * Application Setup
+ */
+const createApp = () => {
+  const app = express();
+  const container = new Container();
+
+  // Middleware
+  app.use(
+    cors({
+      origin: config.corsOrigins,
+      credentials: true,
+    })
+  );
+
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+    })
+  );
+
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+
+  // Custom request logging
+  if (config.isDevelopment) {
+    app.use(requestLogger);
+  }
+
+  // API Routes with Dependency Injection
+  app.use(
+    "/api",
+    createApiRoutes({
+      stockController: container.stockController,
+      portfolioController: container.portfolioController,
+      dividendController: container.dividendController,
+    })
+  );
+
+  // Health check endpoint
+  app.get("/health", (req, res) => {
+    res.json({
+      status: "OK",
+      timestamp: new Date().toISOString(),
+      environment: config.nodeEnv,
+    });
+  });
+
+  // Error Handling
+  app.use(notFoundHandler);
+  app.use(errorHandler);
+
+  return app;
+};
+
+/**
+ * Start Server
+ */
+const startServer = () => {
+  const app = createApp();
+  const PORT = config.port;
+
+  app.listen(PORT, () => {
+    logger.success(`🚀 Backend server running on port ${PORT}`);
+    logger.info(`📝 Environment: ${config.nodeEnv}`);
+    logger.info(`🔗 CORS Origins: ${config.corsOrigins.join(", ")}`);
+    logger.info(`🐍 Python API: ${config.pythonApiUrl}`);
+  });
+};
+
+// Start the server
+startServer();
+
+export { createApp };
