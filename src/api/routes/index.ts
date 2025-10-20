@@ -12,6 +12,7 @@ import {
 import { createStockRouter } from "./stocks.routes";
 import { createPortfolioRouter } from "./portfolio.routes";
 import { createDividendRouter } from "./dividends.routes";
+import { createFinancialsRouter } from "./financials.routes";
 
 export interface RoutesDependencies {
   stockController: StockController;
@@ -32,6 +33,7 @@ export const createApiRoutes = (dependencies: RoutesDependencies): Router => {
     "/dividends",
     createDividendRouter(dependencies.dividendController)
   );
+  router.use("/financials", createFinancialsRouter());
 
   // Health check
   router.get("/health", (req, res) => {
