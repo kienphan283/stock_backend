@@ -1,0 +1,120 @@
+version: "3.8"
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: stock_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-stock_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stock_password}
+      POSTGRES_DB: ${POSTGRES_DB:-stock_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../sql/Database.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - stock_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stock_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: stock_redis
+    restart: unless-stopped
+    command: redis-server /usr/local/etc/redis/redis.conf
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis/config/redis.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      - stock_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # REST API Server (Python FastAPI)
+  restapi-server:
+    build:
+      context: ./restapi-server
+      dockerfile: Dockerfile
+    container_name: stock_restapi
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-stock_user}:${POSTGRES_PASSWORD:-stock_password}@postgres:5432/${POSTGRES_DB:-stock_db}
+      REDIS_URL: redis://redis:6379
+      CACHE_TTL: ${CACHE_TTL:-1800}
+    ports:
+      - "${RESTAPI_PORT:-8000}:8000"
+    volumes:
+      - ./restapi-server:/app
+    networks:
+      - stock_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn server:app --host 0.0.0.0 --port 8000 --reload
+
+  # Express.js Server (Node.js)
+  expressjs-server:
+    build:
+      context: ./expressjs-server
+      dockerfile: Dockerfile
+    container_name: stock_expressjs
+    restart: unless-stopped
+    environment:
+      PORT: ${EXPRESSJS_PORT:-5000}
+      NODE_ENV: ${NODE_ENV:-development}
+      PYTHON_API_URL: http://restapi-server:8000
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+    ports:
+      - "${EXPRESSJS_PORT:-5000}:5000"
+    volumes:
+      - ./expressjs-server/src:/app/src
+      - ./expressjs-server/package.json:/app/package.json
+      - ./expressjs-server/tsconfig.json:/app/tsconfig.json
+    networks:
+      - stock_network
+    depends_on:
+      - restapi-server
+    command: npm run dev
+
+  # ETL Service (Optional - for scheduled jobs)
+  etl:
+    build:
+      context: ./etl
+      dockerfile: Dockerfile
+    container_name: stock_etl
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-stock_user}:${POSTGRES_PASSWORD:-stock_password}@postgres:5432/${POSTGRES_DB:-stock_db}
+    volumes:
+      - ./etl:/app
+    networks:
+      - stock_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Run scheduler or manual pipelines
+    # command: python schedulers/cron_jobs.py
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  stock_network:
+    driver: bridge

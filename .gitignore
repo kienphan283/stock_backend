@@ -161,3 +161,19 @@ temp/
 # Backup files
 *.backup
 *.bak
+
+# ============================================
+# Docker / Container
+# ============================================
+
+# Dockerfile templates - keep committed ones only
+# docker-compose.yml
+
+# ============================================
+# ETL Pipeline - Keep source structure
+# ============================================
+
+# Only ignore build artifacts, not source code
+# etl/pipelines/
+# etl/processors/
+# etl/schedulers/
