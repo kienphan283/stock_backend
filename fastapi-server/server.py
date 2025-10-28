@@ -10,27 +10,52 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import json
 from collections import defaultdict
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Database configuration (from data.py)
-DB_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "dbname": "Web_quan_li_danh_muc",
-    "user": "postgres",
-    "password": "123456"
-}
+# Database configuration - Use environment variables with fallbacks
+DATABASE_URL = os.getenv("DATABASE_URL")
+if DATABASE_URL:
+    # Parse DATABASE_URL format: postgresql://user:password@host:port/dbname
+    import re
+    match = re.match(r'postgresql://([^:]+):([^@]+)@([^:]+):(\d+)/(.+)', DATABASE_URL)
+    if match:
+        DB_CONFIG = {
+            "user": match.group(1),
+            "password": match.group(2),
+            "host": match.group(3),
+            "port": int(match.group(4)),
+            "dbname": match.group(5)
+        }
+    else:
+        raise ValueError(f"Invalid DATABASE_URL format: {DATABASE_URL}")
+else:
+    # Fallback to individual environment variables or defaults
+    DB_CONFIG = {
+        "host": os.getenv("DB_HOST", "localhost"),
+        "port": int(os.getenv("DB_PORT", "5432")),
+        "dbname": os.getenv("DB_NAME", "Web_quan_li_danh_muc"),
+        "user": os.getenv("DB_USER", "postgres"),
+        "password": os.getenv("DB_PASSWORD", "123456")
+    }
 
-# Optional Redis configuration
+logger.info(f"Database config: host={DB_CONFIG['host']}, dbname={DB_CONFIG['dbname']}, user={DB_CONFIG['user']}")
+
+# Optional Redis configuration - Use environment variables
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+
 try:
     import redis
-    REDIS_CLIENT = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+    REDIS_CLIENT = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0, decode_responses=True)
+    # Test connection
+    REDIS_CLIENT.ping()
     REDIS_ENABLED = True
-    logger.info("Redis caching enabled")
-except (ImportError, redis.ConnectionError) as e:
+    logger.info(f"Redis caching enabled at {REDIS_HOST}:{REDIS_PORT}")
+except (ImportError, redis.ConnectionError, redis.ResponseError) as e:
     REDIS_CLIENT = None
     REDIS_ENABLED = False
     logger.warning(f"Redis not available: {e}")
