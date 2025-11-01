@@ -48,7 +48,6 @@ class StockDataLoader:
             df = pd.read_csv(file_path)
             return df if not df.empty else None
         except Exception as e:
-            print(f"Error reading {filename}: {e}")
             return None
 
     def _format_number(self, value: Any, decimals: int = 2) -> float:
@@ -111,7 +110,6 @@ class StockDataLoader:
         
         
         try:
-            print(f"[DEBUG] Querying database for ticker: {self.ticker}")
             conn = psycopg2.connect(**self.DB_CONFIG)
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             
@@ -127,12 +125,10 @@ class StockDataLoader:
             """, (self.ticker,))
             
             result = cursor.fetchone()
-            print(f"[DEBUG] Query result: {result}")
             cursor.close()
             conn.close()
             
             if result:
-                print(f"[DEBUG] Returning company data for {result['ticker']}")
                 return {
                     "name": result['name'],
                     "ticker": result['ticker'],
@@ -147,10 +143,8 @@ class StockDataLoader:
                     "website": "",
                     "phone": ""
                 }
-            else:
-                print(f"[DEBUG] No result found for ticker {self.ticker}")
         except Exception as e:
-            print(f"[ERROR] Database error for ticker {self.ticker}: {e}")
+            pass
         
         # Fallback to default if database query fails
         return {
@@ -447,10 +441,8 @@ class StockDataLoader:
         try:
             script_path = os.path.join(self.data_dir, "fetch_finnhub_data.py")
             if not os.path.exists(script_path):
-                print("fetch_finnhub_data.py not found")
                 return False
 
-            print("Refreshing data from Finnhub API...")
             result = subprocess.run(
                 ["python", script_path],
                 cwd=self.data_dir,
@@ -458,15 +450,9 @@ class StockDataLoader:
                 text=True
             )
 
-            if result.returncode == 0:
-                print("Data refresh completed successfully")
-                return True
-            else:
-                print(f"Data refresh failed: {result.stderr}")
-                return False
+            return result.returncode == 0
 
-        except Exception as e:
-            print(f"Error refreshing data: {e}")
+        except Exception:
             return False
 
     def get_data_summary(self) -> Dict[str, Any]:

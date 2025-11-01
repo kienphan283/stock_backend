@@ -9,7 +9,7 @@ const envSchema = z.object({
   PORT: z
     .string()
     .default("5000")
-    .transform((val) => parseInt(val, 10))
+    .transform((val: string) => parseInt(val, 10))
     .pipe(z.number().min(1).max(65535)),
 
   NODE_ENV: z
@@ -21,13 +21,13 @@ const envSchema = z.object({
   PYTHON_API_TIMEOUT: z
     .string()
     .default("10000")
-    .transform((val) => parseInt(val, 10))
+    .transform((val: string) => parseInt(val, 10))
     .pipe(z.number().positive()),
 
   CORS_ORIGINS: z
     .string()
     .default("http://localhost:3000,http://127.0.0.1:3000")
-    .transform((val) => val.split(",")),
+    .transform((val: string) => val.split(",")),
 
   LOG_LEVEL: z
     .enum(["error", "warn", "info", "debug"])
@@ -50,7 +50,7 @@ function validateEnv() {
   } catch (error) {
     if (error instanceof z.ZodError) {
       console.error("❌ Invalid environment variables:");
-      error.issues.forEach((issue) => {
+      error.issues.forEach((issue: z.ZodIssue) => {
         console.error(`  - ${issue.path.join(".")}: ${issue.message}`);
       });
       throw new Error("Environment validation failed");

@@ -6,6 +6,11 @@ import os
 from dotenv import load_dotenv
 from pathlib import Path
 
+try:
+    from services.import_stock_prices import import_eod_prices_for_symbol
+except ImportError:  # pragma: no cover - support running as a script
+    from .import_stock_prices import import_eod_prices_for_symbol
+
 CURRENT_FILE_PATH = Path(__file__).resolve() 
 ENV_PATH = CURRENT_FILE_PATH.parent.parent / ".env.local" 
 load_dotenv(ENV_PATH)
@@ -89,17 +94,26 @@ def import_financial_data(symbol: str, statement_code: str, api_key: str, conn):
 
 def import_all_statements(symbol: str, api_key: str):
     conn = psycopg2.connect(**DB_CONFIG)
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO financial_oltp.company (company_id, company_name, exchange)
-        VALUES (%s, %s, %s)
-        ON CONFLICT (company_id) DO NOTHING
-    """, (symbol, f"{symbol} Corporation", "NYSE"))
-    conn.commit()
-    for code in ["IS", "BS", "CF"]:
-        import_financial_data(symbol, code, api_key, conn)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO financial_oltp.company (company_id, company_name, exchange)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (company_id) DO NOTHING
+                """,
+                (symbol, f"{symbol} Corporation", "NYSE"),
+            )
         conn.commit()
-    conn.close()
+
+        for code in ["IS", "BS", "CF"]:
+            import_financial_data(symbol, code, api_key, conn)
+            conn.commit()
+
+        # Load end-of-day prices after financial statements to ensure stock exists
+        import_eod_prices_for_symbol(symbol, conn=conn)
+    finally:
+        conn.close()
 
 if __name__ == "__main__":
     top_companies = [

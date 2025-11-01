@@ -33,16 +33,24 @@ if DATABASE_URL:
     else:
         raise ValueError(f"Invalid DATABASE_URL format: {DATABASE_URL}")
 else:
-    # Fallback to individual environment variables or defaults
+    # Fallback to individual environment variables
     DB_CONFIG = {
         "host": os.getenv("DB_HOST", "localhost"),
         "port": int(os.getenv("DB_PORT", "5432")),
         "dbname": os.getenv("DB_NAME", "Web_quan_li_danh_muc"),
         "user": os.getenv("DB_USER", "postgres"),
-        "password": os.getenv("DB_PASSWORD", "123456")
+        "password": os.getenv("DB_PASSWORD")
     }
+    
+    # Validate critical config
+    if not DB_CONFIG["password"]:
+        raise ValueError("DB_PASSWORD environment variable is required")
 
 logger.info(f"Database config: host={DB_CONFIG['host']}, dbname={DB_CONFIG['dbname']}, user={DB_CONFIG['user']}")
+
+# Database schema constants
+MARKET_DATA_SCHEMA = "market_data_oltp"
+FINANCIAL_DATA_SCHEMA = "financial_oltp"
 
 # Optional Redis configuration - Use environment variables
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
@@ -199,12 +207,82 @@ async def root():
 
 @app.get("/quote", tags=["Real-Time Data"], summary="Get Stock Quote")
 async def get_quote(ticker: str = Query(..., description="Stock ticker symbol", example="IBM")):
-    """📈 Get current stock quote with price, volume, and market data"""
+    """📈 Get current stock quote with price, volume, and market data from database"""
     try:
         logger.info(f"Fetching quote for {ticker}")
-        temp_loader = StockDataLoader(ticker.upper())
-        data = temp_loader.get_quote()
-        return {"success": True, "data": data}
+        
+        conn = psycopg2.connect(**DB_CONFIG)
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Get stock_id
+                cur.execute(f"""
+                    SELECT stock_id 
+                    FROM {MARKET_DATA_SCHEMA}.stocks 
+                    WHERE stock_ticker = %s
+                """, (ticker.upper(),))
+                
+                stock_result = cur.fetchone()
+                if not stock_result:
+                    # Fallback to CSV loader if not in database
+                    temp_loader = StockDataLoader(ticker.upper())
+                    data = temp_loader.get_quote()
+                    return {"success": True, "data": data}
+                
+                stock_id = stock_result['stock_id']
+                
+                # Get latest EOD price data
+                cur.execute(f"""
+                    SELECT 
+                        close_price as current_price,
+                        open_price,
+                        high_price,
+                        low_price,
+                        volume,
+                        pct_change as percent_change
+                    FROM {MARKET_DATA_SCHEMA}.stock_eod_prices 
+                    WHERE stock_id = %s 
+                    ORDER BY trading_date DESC 
+                    LIMIT 1
+                """, (stock_id,))
+                
+                latest = cur.fetchone()
+                
+                if not latest:
+                    # Fallback to CSV loader if no price data
+                    temp_loader = StockDataLoader(ticker.upper())
+                    data = temp_loader.get_quote()
+                    return {"success": True, "data": data}
+                
+                # Get previous close for change calculation
+                cur.execute(f"""
+                    SELECT close_price
+                    FROM {MARKET_DATA_SCHEMA}.stock_eod_prices 
+                    WHERE stock_id = %s 
+                    ORDER BY trading_date DESC 
+                    OFFSET 1
+                    LIMIT 1
+                """, (stock_id,))
+                
+                prev = cur.fetchone()
+                previous_close = float(prev['close_price']) if prev else float(latest['current_price'])
+                current_price = float(latest['current_price'])
+                change = current_price - previous_close
+                
+                data = {
+                    "currentPrice": round(current_price, 2),
+                    "change": round(change, 2),
+                    "percentChange": round(float(latest['percent_change'] or 0), 2),
+                    "high": round(float(latest['high_price'] or 0), 2),
+                    "low": round(float(latest['low_price'] or 0), 2),
+                    "open": round(float(latest['open_price'] or 0), 2),
+                    "previousClose": round(previous_close, 2)
+                }
+                
+                return {"success": True, "data": data}
+                
+        finally:
+            conn.close()
+            
     except Exception as e:
         logger.error(f"Error fetching quote: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -631,6 +709,132 @@ async def get_companies():
         
     except Exception as e:
         logger.error(f"Error fetching companies: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+class PriceChangeResponse(BaseModel):
+    ticker: str = Field(..., description="Stock ticker symbol", example="IBM")
+    currentPrice: float = Field(..., description="Current stock price", example=150.25)
+    previousClose: float = Field(..., description="Previous day's closing price", example=149.19)
+    absoluteChange: float = Field(..., description="Absolute price change (current - previous)", example=1.06)
+    percentageChange: float = Field(..., description="Percentage price change", example=0.71)
+
+@app.get(
+    "/api/stocks/{ticker}/price-change",
+    response_model=PriceChangeResponse,
+    summary="📈 Get Stock Price Change",
+    description="""
+    **Calculate stock price changes from database**
+    
+    ### Calculation Logic
+    - **Current Price**: Latest price from `stock_trades_realtime` or today's close from `stock_eod_prices`
+    - **Previous Close**: Most recent closing price from `stock_eod_prices` (previous trading day)
+    - **Absolute Change**: Current Price - Previous Close
+    - **Percentage Change**: (Absolute Change / Previous Close) × 100
+    
+    ### Example
+    ```json
+    {
+      "ticker": "IBM",
+      "currentPrice": 150.25,
+      "previousClose": 149.19,
+      "absoluteChange": 1.06,
+      "percentageChange": 0.71
+    }
+    ```
+    """,
+    tags=["Stock Data"],
+    responses={
+        200: {
+            "description": "Successfully retrieved price change data"
+        },
+        404: {
+            "description": "Stock not found or no price data available"
+        },
+        500: {
+            "description": "Server error"
+        }
+    }
+)
+async def get_price_change(ticker: str):
+    """
+    Get stock price change calculations from database.
+    Calculates absolute and percentage changes based on current price vs previous day's close.
+    """
+    try:
+        logger.info(f"Fetching price change for ticker: {ticker}")
+        
+        conn = psycopg2.connect(**DB_CONFIG)
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # First, get stock_id from ticker
+                cur.execute(f"""
+                    SELECT stock_id 
+                    FROM {MARKET_DATA_SCHEMA}.stocks 
+                    WHERE stock_ticker = %s
+                """, (ticker.upper(),))
+                
+                stock_result = cur.fetchone()
+                if not stock_result:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Stock ticker '{ticker}' not found in database"
+                    )
+                
+                stock_id = stock_result['stock_id']
+                
+                # Get latest EOD price as current price
+                cur.execute(f"""
+                    SELECT close_price, pct_change
+                    FROM {MARKET_DATA_SCHEMA}.stock_eod_prices 
+                    WHERE stock_id = %s 
+                    ORDER BY trading_date DESC 
+                    LIMIT 1
+                """, (stock_id,))
+                
+                latest = cur.fetchone()
+                if not latest or not latest['close_price']:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"No price data found for ticker '{ticker}'"
+                    )
+                
+                current_price = float(latest['close_price'])
+                
+                # Get previous EOD price
+                cur.execute(f"""
+                    SELECT close_price
+                    FROM {MARKET_DATA_SCHEMA}.stock_eod_prices 
+                    WHERE stock_id = %s 
+                    ORDER BY trading_date DESC 
+                    OFFSET 1
+                    LIMIT 1
+                """, (stock_id,))
+                
+                prev = cur.fetchone()
+                previous_close = float(prev['close_price']) if prev else current_price
+                
+                # Calculate changes
+                absolute_change = current_price - previous_close
+                percentage_change = (absolute_change / previous_close) * 100 if previous_close != 0 else 0.0
+                
+                result = {
+                    "ticker": ticker.upper(),
+                    "currentPrice": round(current_price, 2),
+                    "previousClose": round(previous_close, 2),
+                    "absoluteChange": round(absolute_change, 2),
+                    "percentageChange": round(percentage_change, 2)
+                }
+                
+                logger.info(f"Price change calculated for {ticker}: {result}")
+                return result
+                
+        finally:
+            conn.close()
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching price change for {ticker}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
