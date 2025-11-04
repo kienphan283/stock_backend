@@ -27,7 +27,7 @@ export interface IFinancialClient {
   /**
    * Get price history for a given period
    */
-  getPriceHistory(period: string): Promise<PriceHistoryData | null>;
+  getPriceHistory(ticker: string, period: string): Promise<PriceHistoryData | null>;
 
   /**
    * Get company news

@@ -91,8 +91,8 @@ export class StockService {
   /**
    * Get price history
    */
-  async getPriceHistory(period: string) {
-    const history = await this.financialClient.getPriceHistory(period);
+  async getPriceHistory(ticker: string, period: string) {
+    const history = await this.financialClient.getPriceHistory(ticker, period);
     if (!history) {
       throw new NotFoundError("Price history");
     }

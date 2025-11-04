@@ -81,9 +81,10 @@ export class PythonFinancialClient implements IFinancialClient {
   }
 
   async getPriceHistory(
+    ticker: string,
     period: string = "3m"
   ): Promise<PriceHistoryData | null> {
-    return this.call<PriceHistoryData>(`/price-history?period=${period}`);
+    return this.call<PriceHistoryData>(`/price-history?ticker=${ticker}&period=${period}`);
   }
 
   async getNews(limit: number = 16): Promise<NewsData | null> {

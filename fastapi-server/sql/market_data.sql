@@ -92,13 +92,19 @@ CREATE TABLE stock_eod_prices (
 );
 
 CREATE INDEX idx_eod_stock_date ON stock_eod_prices (stock_id, trading_date DESC);
+
+-- Insert IBM into company table first (to satisfy foreign key constraint)
+INSERT INTO financial_oltp.company (company_id, company_name, sector, exchange)
+VALUES ('IBM', 'IBM Corporation', 'Technology', 'NYSE')
+ON CONFLICT (company_id) DO NOTHING;
+
 INSERT INTO market_data_oltp.stocks (
-    company_id, 
-    stock_ticker, 
-    stock_name, 
-    exchange, 
+    company_id,
+    stock_ticker,
+    stock_name,
+    exchange,
     delisted
-) 
+)
 VALUES (
     'IBM',                          -- company_id trùng với bảng financial_oltp.company
     'IBM',                          -- mã chứng khoán

@@ -300,13 +300,146 @@ async def get_company_profile(ticker: str = Query(..., description="Stock ticker
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/price-history")
-async def get_price_history(ticker: str = Query(..., description="Stock ticker symbol", example="IBM"), period: str = "3m"):
-    """Get price history data"""
+async def get_price_history(
+    ticker: str = Query(..., description="Stock ticker symbol", example="IBM"),
+    period: str = Query("1m", description="Time period: 1d, 5d, 1m, 3m, 6m, ytd, 1y, 5y, max", example="1m")
+):
+    """📊 Get historical price data from database"""
     try:
         logger.info(f"Fetching price history for {ticker}, period: {period}")
-        temp_loader = StockDataLoader(ticker.upper())
-        data = temp_loader.get_price_history(period)
-        return {"success": True, "data": data}
+
+        conn = psycopg2.connect(**DB_CONFIG)
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Get stock_id from ticker
+                cur.execute(f"""
+                    SELECT stock_id
+                    FROM {MARKET_DATA_SCHEMA}.stocks
+                    WHERE stock_ticker = %s
+                """, (ticker.upper(),))
+
+                stock_result = cur.fetchone()
+                if not stock_result:
+                    # Fallback to CSV loader if not in database
+                    logger.warning(f"Stock {ticker} not found in database, using CSV loader")
+                    temp_loader = StockDataLoader(ticker.upper())
+                    data = temp_loader.get_price_history(period)
+                    return {"success": True, "data": data}
+
+                stock_id = stock_result['stock_id']
+
+                # For 1d and 5d, use LIMIT to get N most recent trading days
+                # For longer periods, use date-based filtering
+                period_lower = period.lower()
+
+                if period_lower == "1d":
+                    # Get 1 most recent trading day
+                    cur.execute(f"""
+                        SELECT
+                            trading_date as date,
+                            open_price as open,
+                            high_price as high,
+                            low_price as low,
+                            close_price as close,
+                            volume,
+                            pct_change
+                        FROM {MARKET_DATA_SCHEMA}.stock_eod_prices
+                        WHERE stock_id = %s
+                        ORDER BY trading_date DESC
+                        LIMIT 1
+                    """, (stock_id,))
+                elif period_lower == "5d":
+                    # Get 5 most recent trading days
+                    cur.execute(f"""
+                        SELECT
+                            trading_date as date,
+                            open_price as open,
+                            high_price as high,
+                            low_price as low,
+                            close_price as close,
+                            volume,
+                            pct_change
+                        FROM {MARKET_DATA_SCHEMA}.stock_eod_prices
+                        WHERE stock_id = %s
+                        ORDER BY trading_date DESC
+                        LIMIT 5
+                    """, (stock_id,))
+                elif period_lower == "ytd":
+                    # Year to date: from January 1 of current year
+                    cur.execute(f"""
+                        SELECT
+                            trading_date as date,
+                            open_price as open,
+                            high_price as high,
+                            low_price as low,
+                            close_price as close,
+                            volume,
+                            pct_change
+                        FROM {MARKET_DATA_SCHEMA}.stock_eod_prices
+                        WHERE stock_id = %s
+                            AND trading_date >= DATE_TRUNC('year', CURRENT_DATE)
+                        ORDER BY trading_date ASC
+                    """, (stock_id,))
+                else:
+                    # For longer periods, use calendar days
+                    period_to_days = {
+                        "1m": 30,
+                        "3m": 90,
+                        "6m": 180,
+                        "1y": 365,
+                        "5y": 1825,
+                        "max": 10000  # Effectively unlimited
+                    }
+                    days = period_to_days.get(period_lower, 30)
+
+                    cur.execute(f"""
+                        SELECT
+                            trading_date as date,
+                            open_price as open,
+                            high_price as high,
+                            low_price as low,
+                            close_price as close,
+                            volume,
+                            pct_change
+                        FROM {MARKET_DATA_SCHEMA}.stock_eod_prices
+                        WHERE stock_id = %s
+                            AND trading_date >= CURRENT_DATE - INTERVAL '%s days'
+                        ORDER BY trading_date ASC
+                    """, (stock_id, days))
+
+                rows = cur.fetchall()
+
+                # Reverse order for 1d and 5d to get chronological order
+                if period_lower in ["1d", "5d"]:
+                    rows = list(reversed(rows))
+
+                if not rows:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"No price history found for {ticker} in period {period}"
+                    )
+
+                # Format data for frontend
+                data = []
+                for row in rows:
+                    data.append({
+                        "date": row['date'].strftime("%Y-%m-%d"),
+                        "open": float(row['open']) if row['open'] else None,
+                        "high": float(row['high']) if row['high'] else None,
+                        "low": float(row['low']) if row['low'] else None,
+                        "close": float(row['close']) if row['close'] else None,
+                        "volume": int(row['volume']) if row['volume'] else 0,
+                        "pctChange": float(row['pct_change']) if row['pct_change'] else 0.0
+                    })
+
+                logger.info(f"Fetched {len(data)} price records for {ticker}")
+                return {"success": True, "data": data}
+
+        finally:
+            conn.close()
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching price history: {e}")
         raise HTTPException(status_code=500, detail=str(e))

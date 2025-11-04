@@ -43,8 +43,10 @@ export class StockController {
   });
 
   getPriceHistory = asyncHandler(async (req: Request, res: Response) => {
+    const { ticker } = req.params;
     const { period } = req.query;
     const history = await this.stockService.getPriceHistory(
+      ticker,
       (period as string) || "3m"
     );
 
