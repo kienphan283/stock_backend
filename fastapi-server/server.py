@@ -970,6 +970,470 @@ async def get_price_change(ticker: str):
         logger.error(f"Error fetching price change for {ticker}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+# ==========================================
+# MARKET OVERVIEW ENDPOINTS
+# ==========================================
+
+@app.get(
+    "/api/market/indices",
+    summary="Get Market Indices",
+    description="""
+    Get major market indices (SPY, QQQ, DIA, IWM) with current prices and sparkline data.
+    
+    TODO: Khi có database đầy đủ, query từ market_data_oltp.stocks và stock_eod_prices
+    Hiện tại return mock data.
+    
+    Future WebSocket: /ws/market/indices - Realtime index updates
+    """,
+    tags=["Market Overview"],
+)
+async def get_market_indices():
+    """
+    Get market indices overview
+    
+    TODO: Replace with real database query
+    Currently returns mock data for development
+    """
+    # MOCK DATA - Replace khi có database đầy đủ
+    import random
+    from datetime import datetime
+    
+    indices = [
+        {"code": "SPY", "name": "S&P 500 ETF", "basePrice": 467.84},
+        {"code": "QQQ", "name": "NASDAQ-100", "basePrice": 387.23},
+        {"code": "DIA", "name": "Dow Jones", "basePrice": 350.15},
+        {"code": "IWM", "name": "Russell 2000", "basePrice": 212.56},
+    ]
+    
+    result = []
+    for index in indices:
+        change_percent = (random.random() - 0.45) * 2  # -0.9% to 1.1%
+        change = index["basePrice"] * (change_percent / 100)
+        price = index["basePrice"] + change
+        
+        # Generate sparkline data (last 50 points)
+        sparkline = []
+        start_price = index["basePrice"] * (1 - change_percent / 100)
+        for i in range(50):
+            progress = i / 49
+            noise = (random.random() - 0.5) * (price - start_price) * 0.1
+            sparkline.append(round(start_price + (price - start_price) * progress + noise, 2))
+        
+        result.append({
+            "code": index["code"],
+            "name": index["name"],
+            "price": round(price, 2),
+            "change": round(change, 2),
+            "changePercent": round(change_percent, 2),
+            "volume": random.randint(30000000, 80000000),
+            "high": round(price * 1.005, 2),
+            "low": round(price * 0.995, 2),
+            "sparklineData": sparkline,
+            "timestamp": datetime.now().isoformat(),
+        })
+    
+    return result
+
+@app.get(
+    "/api/market/candles/{ticker}",
+    summary="Get Candlestick Bars",
+    description="""
+    Get candlestick bars for a ticker from database.
+    
+    **Current Implementation:**
+    - Query from: market_data_oltp.stock_bars (production table)
+    - TODO: Switch to stock_bars_staging when WebSocket integration is ready
+    
+    **Parameters:**
+    - ticker: Stock ticker (e.g., "SPY", "AAPL")
+    - timeframe: Candle interval (1m, 5m, 15m, 1h, 1D)
+    - limit: Number of bars to return (default: 390 = 1 trading day at 1m)
+    
+    **Future WebSocket:**
+    - WS /ws/market/candles/{ticker}
+    - Stream realtime tick data
+    - Frontend aggregates into candles
+    """,
+    tags=["Market Overview"],
+)
+async def get_market_candles(
+    ticker: str,
+    timeframe: str = Query("1m", description="Timeframe: 1m, 5m, 15m, 1h, 1D"),
+    limit: int = Query(390, description="Number of bars to return"),
+):
+    """
+    Get candlestick bars
+    
+    TODO: Query from market_data_oltp.stock_bars table
+    Currently returns mock data
+    """
+    # MOCK DATA - Replace with database query
+    import random
+    from datetime import datetime, timedelta
+    
+    base_prices = {
+        "SPY": 467.84,
+        "QQQ": 387.23,
+        "DIA": 350.15,
+        "IWM": 212.56,
+        "AAPL": 189.50,
+        "MSFT": 378.90,
+    }
+    
+    base_price = base_prices.get(ticker.upper(), 150.0)
+    
+    # Calculate interval in minutes
+    interval_map = {
+        "1m": 1,
+        "5m": 5,
+        "15m": 15,
+        "30m": 30,
+        "1h": 60,
+        "1D": 1440,
+    }
+    interval_minutes = interval_map.get(timeframe, 1)
+    
+    # Generate candles
+    candles = []
+    current_price = base_price
+    now = datetime.now()
+    
+    for i in range(limit - 1, -1, -1):
+        timestamp = now - timedelta(minutes=i * interval_minutes)
+        
+        # Random OHLC movement
+        volatility = base_price * 0.002
+        change = (random.random() - 0.5) * volatility * 2
+        
+        open_price = current_price
+        close_price = open_price + change
+        high_price = max(open_price, close_price) + random.random() * volatility
+        low_price = min(open_price, close_price) - random.random() * volatility
+        
+        candles.append({
+            "timestamp": int(timestamp.timestamp() * 1000),
+            "time": timestamp.isoformat(),
+            "open": round(open_price, 2),
+            "high": round(high_price, 2),
+            "low": round(low_price, 2),
+            "close": round(close_price, 2),
+            "volume": random.randint(100000, 2000000),
+            "vwap": round((open_price + high_price + low_price + close_price) / 4, 2),
+            "tradeCount": random.randint(50, 500),
+        })
+        
+        current_price = close_price
+    
+    return {
+        "ticker": ticker.upper(),
+        "timeframe": timeframe,
+        "bars": candles,
+        "isLive": False,
+        "lastUpdate": datetime.now().isoformat(),
+    }
+
+@app.get(
+    "/api/market/heatmap",
+    summary="Get Market Heatmap",
+    description="""
+    Get heatmap data for all stocks grouped by sector.
+    
+    **Returns:**
+    - Stocks grouped by sector
+    - Size: Market capitalization
+    - Color: Percentage change (red = decrease, green = increase)
+    
+    **TODO:**
+    - Query from market_data_oltp tables
+    - Add sector classification
+    - WebSocket: /ws/market/heatmap - Batch price updates every 5 seconds
+    """,
+    tags=["Market Overview"],
+)
+async def get_market_heatmap(
+    sector: Optional[str] = Query(None, description="Filter by sector"),
+):
+    """
+    Get market heatmap data
+    
+    TODO: Query from database with sector grouping
+    Currently returns mock data
+    """
+    # MOCK DATA - Replace with database query
+    import random
+    from datetime import datetime
+    
+    sectors_data = [
+        {
+            "sector": "Technology",
+            "displayName": "Công nghệ",
+            "color": "#3b82f6",
+            "stocks": [
+                {"ticker": "AAPL", "name": "Apple Inc.", "basePrice": 189.5, "marketCap": 3000},
+                {"ticker": "MSFT", "name": "Microsoft", "basePrice": 378.9, "marketCap": 2800},
+                {"ticker": "GOOGL", "name": "Alphabet", "basePrice": 141.8, "marketCap": 1800},
+                {"ticker": "NVDA", "name": "NVIDIA", "basePrice": 495.2, "marketCap": 1200},
+            ],
+        },
+        {
+            "sector": "Financials",
+            "displayName": "Tài chính",
+            "color": "#10b981",
+            "stocks": [
+                {"ticker": "JPM", "name": "JPMorgan Chase", "basePrice": 152.3, "marketCap": 450},
+                {"ticker": "BAC", "name": "Bank of America", "basePrice": 34.2, "marketCap": 280},
+                {"ticker": "WFC", "name": "Wells Fargo", "basePrice": 48.5, "marketCap": 180},
+            ],
+        },
+        {
+            "sector": "Healthcare",
+            "displayName": "Y tế",
+            "color": "#ef4444",
+            "stocks": [
+                {"ticker": "UNH", "name": "UnitedHealth", "basePrice": 528.3, "marketCap": 500},
+                {"ticker": "JNJ", "name": "Johnson & Johnson", "basePrice": 156.8, "marketCap": 380},
+                {"ticker": "PFE", "name": "Pfizer", "basePrice": 28.4, "marketCap": 160},
+            ],
+        },
+    ]
+    
+    sectors = []
+    total_stocks = 0
+    
+    for sector_info in sectors_data:
+        stocks = []
+        for stock in sector_info["stocks"]:
+            change_percent = (random.random() - 0.45) * 6  # -2.7% to 3.3%
+            change = stock["basePrice"] * (change_percent / 100)
+            price = stock["basePrice"] + change
+            
+            stocks.append({
+                "ticker": stock["ticker"],
+                "name": stock["name"],
+                "sector": sector_info["sector"],
+                "price": round(price, 2),
+                "change": round(change, 2),
+                "changePercent": round(change_percent, 2),
+                "marketCap": stock["marketCap"] * 1_000_000_000,
+                "volume": random.randint(1000000, 50000000),
+            })
+            total_stocks += 1
+        
+        total_market_cap = sum(s["marketCap"] for s in stocks)
+        avg_change = sum(s["changePercent"] for s in stocks) / len(stocks) if stocks else 0
+        
+        sectors.append({
+            "sector": sector_info["sector"],
+            "displayName": sector_info["displayName"],
+            "color": sector_info["color"],
+            "stocks": stocks,
+            "totalMarketCap": total_market_cap,
+            "avgChange": round(avg_change, 2),
+        })
+    
+    return {
+        "sectors": sectors,
+        "totalStocks": total_stocks,
+        "lastUpdate": datetime.now().isoformat(),
+    }
+
+@app.get(
+    "/api/market/status",
+    summary="Get Market Status",
+    description="""
+    Get market overview statistics.
+    
+    **Returns:**
+    - Advancing/Declining/Unchanged stock counts
+    - Cash flow distribution
+    - Foreign trading activity
+    
+    **TODO:**
+    - Calculate from real-time stock data
+    - WebSocket: /ws/market/status - Update every 30 seconds
+    """,
+    tags=["Market Overview"],
+)
+async def get_market_status():
+    """
+    Get market status overview
+    
+    TODO: Calculate from database
+    Currently returns mock data
+    """
+    # MOCK DATA
+    import random
+    from datetime import datetime
+    
+    total_stocks = 30
+    advancing = random.randint(12, 18)
+    declining = random.randint(8, 14)
+    unchanged = total_stocks - advancing - declining
+    
+    return {
+        "advancing": advancing,
+        "declining": declining,
+        "unchanged": unchanged,
+        "cashFlow": {
+            "advancing": round(random.uniform(4000, 12000), 2),
+            "declining": round(random.uniform(2000, 8000), 2),
+            "unchanged": round(random.uniform(500, 2500), 2),
+        },
+        "foreignTrading": {
+            "buy": round(random.uniform(200, 700), 2),
+            "sell": round(random.uniform(200, 700), 2),
+            "net": round((random.random() - 0.5) * 300, 2),
+        },
+        "timestamp": datetime.now().isoformat(),
+    }
+
+@app.get(
+    "/api/market/news",
+    summary="Get Featured News",
+    description="""
+    Get featured news articles for the market overview dashboard.
+    
+    **Current Implementation:**
+    - Returns mock news data
+    - TODO: Integrate with news API (Bloomberg, Reuters, etc.)
+    - TODO: Add database caching layer
+    
+    **Parameters:**
+    - limit: Number of articles to return (default: 6)
+    
+    **Future WebSocket:**
+    - WS /ws/market/news - Real-time news updates as they're published
+    """,
+    tags=["Market Overview"],
+)
+async def get_featured_news(limit: int = 6):
+    """
+    Get featured news articles
+    
+    TODO: Replace with actual news aggregation service
+    Currently returns mock data for development
+    """
+    # MOCK DATA - Replace với news API integration
+    import random
+    from datetime import datetime, timedelta
+    
+    news_titles = [
+        "Cập nhật mới nhất về lệ năm giữ của khối ngoại",
+        "Dòn bẩy vốn cho tăng trưởng",
+        "EU đạt thỏa thuận tạm thời về ngân sách năm 2026",
+        "Canada đầu tư 1,4 tỷ USD mở rộng đường ống dẫn dầu xuất khẩu",
+        "Vàng và bitcoin tiếp tục được xem như 'tài sản' trước biến động thị trường",
+        "Ngại xếp hàng, người dân đổ xô mua bạc 'trao tay'",
+        "Fed dự kiến duy trì lãi suất ổn định trong quý I/2026",
+        "Thị trường châu Á phục hồi nhờ tín hiệu tích cực từ Trung Quốc",
+        "Giá dầu tăng mạnh sau quyết định cắt giảm sản xuất của OPEC+",
+        "Cổ phiếu công nghệ dẫn dắt đà tăng của phố Wall",
+    ]
+    
+    news_thumbnails = [
+        "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=300&h=200&fit=crop",
+        "https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=300&h=200&fit=crop",
+        "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=300&h=200&fit=crop",
+        "https://images.unsplash.com/photo-1559526324-593bc073d938?w=300&h=200&fit=crop",
+        "https://images.unsplash.com/photo-1535320903710-d993d3d77d29?w=300&h=200&fit=crop",
+    ]
+    
+    news_sources = ["Bloomberg", "Reuters", "CNBC", "Financial Times", "Wall Street Journal"]
+    news_categories = ["market", "economy", "stock", "commodity", "crypto"]
+    
+    now = datetime.now()
+    result = []
+    
+    for i in range(min(limit, len(news_titles))):
+        published_at = now - timedelta(hours=i)
+        result.append({
+            "id": f"news-{i + 1}",
+            "title": news_titles[i],
+            "thumbnail": news_thumbnails[i % len(news_thumbnails)],
+            "source": random.choice(news_sources),
+            "publishedAt": published_at.isoformat(),
+            "category": random.choice(news_categories),
+        })
+    
+    return result
+
+# ==========================================
+# WEBSOCKET ENDPOINTS (Future Implementation)
+# ==========================================
+
+# TODO: Uncomment khi WebSocket backend ready
+
+# from fastapi import WebSocket, WebSocketDisconnect
+# import asyncio
+
+# class ConnectionManager:
+#     def __init__(self):
+#         self.active_connections: List[WebSocket] = []
+#     
+#     async def connect(self, websocket: WebSocket):
+#         await websocket.accept()
+#         self.active_connections.append(websocket)
+#     
+#     def disconnect(self, websocket: WebSocket):
+#         self.active_connections.remove(websocket)
+#     
+#     async def broadcast(self, message: dict):
+#         for connection in self.active_connections:
+#             await connection.send_json(message)
+
+# manager = ConnectionManager()
+
+# @app.websocket("/ws/market/candles/{ticker}")
+# async def websocket_candles(websocket: WebSocket, ticker: str):
+#     """
+#     WebSocket endpoint for realtime candle updates
+#     
+#     Flow:
+#     1. Client connects and receives last 100 candles
+#     2. Stream tick data every ~100ms
+#     3. Client aggregates ticks into current candle
+#     4. Send new candle when timeframe completes
+#     """
+#     await manager.connect(websocket)
+#     try:
+#         while True:
+#             # TODO: Fetch latest candle from stock_bars_staging
+#             # data = await get_latest_candle(ticker)
+#             # await websocket.send_json(data)
+#             await asyncio.sleep(1)
+#     except WebSocketDisconnect:
+#         manager.disconnect(websocket)
+
+# @app.websocket("/ws/market/heatmap")
+# async def websocket_heatmap(websocket: WebSocket):
+#     """
+#     WebSocket endpoint for heatmap price updates
+#     
+#     Batch updates every 5 seconds to optimize performance
+#     """
+#     await manager.connect(websocket)
+#     try:
+#         while True:
+#             # TODO: Collect price changes and batch send
+#             # data = await get_market_prices()
+#             # await websocket.send_json(data)
+#             await asyncio.sleep(5)
+#     except WebSocketDisconnect:
+#         manager.disconnect(websocket)
+
+# @app.websocket("/ws/market/indices")
+# async def websocket_indices(websocket: WebSocket):
+#     """
+#     WebSocket endpoint for index updates
+#     """
+#     await manager.connect(websocket)
+#     try:
+#         while True:
+#             # TODO: Stream index data
+#             await asyncio.sleep(2)
+#     except WebSocketDisconnect:
+#         manager.disconnect(websocket)
+
 if __name__ == "__main__":
     print("Starting Stock Data API Server...")
     print("Ticker: APP (AppLovin Corporation)")
