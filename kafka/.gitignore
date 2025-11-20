@@ -1,0 +1,5 @@
+# Kafka folder - Ignore sensitive files
+.env
+*.pyc
+__pycache__/
+*.log
