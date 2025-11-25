@@ -3,13 +3,15 @@ version: "3.8"
 services:
   # PostgreSQL Database
   postgres:
+    env_file:
+      - .env
     image: postgres:15-alpine
     container_name: stock_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-123456}
-      POSTGRES_DB: ${POSTGRES_DB:-Web_quan_li_danh_muc}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -19,14 +21,18 @@ services:
       - ./fastapi-server/sql/market_data.sql:/docker-entrypoint-initdb.d/03-market.sql
     networks:
       - stock_network
+    # FIXED: Improved healthcheck with proper retries and timing
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-Web_quan_li_danh_muc}" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
 
   # Redis Cache
   redis:
+    env_file:
+      - .env
     image: redis:7-alpine
     container_name: stock_redis
     restart: unless-stopped
@@ -38,14 +44,18 @@ services:
       - ./redis/config/redis.conf:/usr/local/etc/redis/redis.conf
     networks:
       - stock_network
+    # FIXED: Improved healthcheck with proper retries and timing
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 10s
-      timeout: 3s
-      retries: 5
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+      start_period: 5s
 
   # REST API Server (Python FastAPI)
   fastapi-server:
+    env_file:
+      - .env
     build:
       context: ./fastapi-server
       dockerfile: Dockerfile
@@ -53,18 +63,20 @@ services:
     restart: unless-stopped
     environment:
       # Connect to PostgreSQL container
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-Web_quan_li_danh_muc}
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-123456}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       # Redis in Docker
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_URL: redis://redis:6379
       CACHE_TTL: ${CACHE_TTL:-1800}
       # Alpha Vantage API Key (get free key from https://www.alphavantage.co/support/#api-key)
-      ALPHA_VANTAGE_API_KEY: ${ALPHA_VANTAGE_API_KEY:-demo}
+      ALPHA_VANTAGE_API_KEY: ${ALPHA_VANTAGE_API_KEY}
+      # Alpaca API Configuration (for REST API access)
+      ALPACA_API_BASE_URL: ${ALPACA_API_BASE_URL:-https://paper-api.alpaca.markets/v2}
     ports:
       - "${FASTAPI_PORT:-8000}:8000"
     volumes:
@@ -79,8 +91,10 @@ services:
         condition: service_healthy
     command: uvicorn server:app --host 0.0.0.0 --port 8000 --reload
 
-  # Express.js Server (Node.js)
+  # Express.js Server (Node.js) - WebSocket Gateway
   expressjs-server:
+    env_file:
+      - .env
     build:
       context: ./expressjs-server
       dockerfile: Dockerfile
@@ -91,6 +105,9 @@ services:
       NODE_ENV: ${NODE_ENV:-development}
       PYTHON_API_URL: http://fastapi-server:8000
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_CHANNEL_TRADES: stock:trades:pubsub
     ports:
       - "${EXPRESSJS_PORT:-5000}:5000"
     volumes:
@@ -100,11 +117,16 @@ services:
     networks:
       - stock_network
     depends_on:
-      - fastapi-server
+      fastapi-server:
+        condition: service_started
+      redis:
+        condition: service_healthy
     command: npm run dev
 
   # Zookeeper (Required for Kafka)
   zookeeper:
+    env_file:
+      - .env
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: stock_zookeeper
     restart: unless-stopped
@@ -118,14 +140,18 @@ services:
       - zookeeper_logs:/var/lib/zookeeper/log
     networks:
       - stock_network
+    # FIXED: Improved healthcheck with proper retries
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "2181"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
 
   # Kafka Broker
   kafka:
+    env_file:
+      - .env
     image: confluentinc/cp-kafka:7.5.0
     container_name: stock_kafka
     restart: unless-stopped
@@ -149,19 +175,24 @@ services:
     depends_on:
       zookeeper:
         condition: service_healthy
+    # FIXED: Improved healthcheck with proper retries and correct command format
     healthcheck:
       test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
       interval: 10s
-      timeout: 10s
-      retries: 5
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   # Kafka UI (Optional - for monitoring)
   kafka-ui:
+    env_file:
+      - .env
     image: provectuslabs/kafka-ui:latest
     container_name: stock_kafka_ui
     restart: unless-stopped
+    # FIXED: Changed port from 8080 to 8081 to avoid conflicts
     ports:
-      - "8080:8080"
+      - "8081:8080"
     environment:
       KAFKA_CLUSTERS_0_NAME: stock_cluster
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
@@ -169,41 +200,85 @@ services:
     networks:
       - stock_network
     depends_on:
-      - kafka
-
-  # Kafka Producer - Alpaca WebSocket to Kafka
-  kafka-producer:
-    build:
-      context: ./kafka
-      dockerfile: Dockerfile.producer
-    container_name: stock_kafka_producer
-    restart: unless-stopped
-    environment:
-      ALPACA_API_KEY: ${ALPACA_API_KEY}
-      ALPACA_SECRET_KEY: ${ALPACA_SECRET_KEY}
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-    networks:
-      - stock_network
-    depends_on:
       kafka:
         condition: service_healthy
 
-  # Kafka Consumer - Database Persistence
-  kafka-consumer-db:
+  # Kafka Producer - Alpaca WebSocket to Kafka & Redis
+  kafka-producer:
+    env_file:
+      - .env
     build:
-      context: ./kafka
-      dockerfile: Dockerfile.consumer
-    container_name: stock_kafka_consumer_db
+      context: .
+      dockerfile: ./etl/streaming/Dockerfile.producer
+    container_name: stock_kafka_producer
+    restart: unless-stopped
+    environment:
+      # FIXED: All Alpaca API credentials properly configured
+      ALPACA_API_KEY: ${ALPACA_API_KEY}
+      ALPACA_API_SECRET: ${ALPACA_API_SECRET}
+      ALPACA_API_BASE_URL: ${ALPACA_API_BASE_URL:-https://paper-api.alpaca.markets/v2}
+      ALPACA_DATA_WS_URL: ${ALPACA_DATA_WS_URL:-wss://stream.data.alpaca.markets/v2/iex}
+      # Kafka configuration
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      # Redis configuration
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+    networks:
+      - stock_network
+    # FIXED: Proper depends_on with healthcheck conditions
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Kafka Consumer - Trades Persistence
+  kafka-consumer-trades:
+    env_file:
+      - .env
+    build:
+      context: .
+      dockerfile: ./etl/streaming/Dockerfile.consumer.trades
+    container_name: stock_kafka_consumer_trades
     restart: unless-stopped
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-Web_quan_li_danh_muc}
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-123456}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      BATCH_SIZE: ${BATCH_SIZE:-100}
     networks:
       - stock_network
+    # FIXED: Proper depends_on with healthcheck conditions
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  # Kafka Consumer - Bars Persistence
+  kafka-consumer-bars:
+    env_file:
+      - .env
+    build:
+      context: .
+      dockerfile: ./etl/streaming/Dockerfile.consumer.bars
+    container_name: stock_kafka_consumer_bars
+    restart: unless-stopped
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      BATCH_SIZE: ${BATCH_SIZE:-100}
+    networks:
+      - stock_network
+    # FIXED: Proper depends_on with healthcheck conditions
     depends_on:
       kafka:
         condition: service_healthy
@@ -218,11 +293,11 @@ services:
   #   container_name: stock_etl
   #   restart: unless-stopped
   #   environment:
-  #     DB_HOST: host.docker.internal
-  #     DB_PORT: 5432
-  #     DB_NAME: ${DB_NAME:-Web_quan_li_danh_muc}
-  #     DB_USER: ${DB_USER:-postgres}
-  #     DB_PASSWORD: ${DB_PASSWORD:-123456}
+  #     POSTGRES_HOST: host.docker.internal
+  #     POSTGRES_PORT: 5432
+  #     POSTGRES_DB: ${POSTGRES_DB}
+  #     POSTGRES_USER: ${POSTGRES_USER}
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
   #   volumes:
   #     - ./etl:/app
   #   networks:

@@ -1,41 +1,52 @@
 # ETL Pipelines
 
-Extract, Transform, Load pipelines for data processing.
+Unified Extract → Transform → Load stack for batch (BCTC/EOD) and streaming data.
 
-## Structure
+## Folder Structure
+
 ```
 etl/
-├── pipelines/          # ETL pipeline scripts
-├── processors/         # Data processors
-├── schedulers/         # Cron jobs & schedulers
-├── tests/              # Tests
+├── common/        # Shared clients, env/config helpers, logging, db utilities
+├── bctc/          # Financial statement (AlphaVantage) pipeline: extract/transform/load
+├── eod/           # Placeholder for end-of-day price pipeline
+├── streaming/     # Real-time Alpaca → Kafka/Redis producers & consumers
+├── runner.py      # Modular CLI entrypoint (python etl/runner.py <pipeline>)
 └── README.md
 ```
 
-## Pipelines
+## Modular Pipelines
 
-### Stock Data Pipeline
-- Fetches stock data from external APIs
-- Transforms and validates data
-- Loads into PostgreSQL
+| Command | Description |
+| --- | --- |
+| `python etl/runner.py bctc --symbol MSFT` | Runs the financial statements pipeline using `bctc/pipeline.py` |
+| (planned) `python etl/runner.py eod ...` | EOD placeholder for future implementation |
 
-### Financial Data Pipeline
-- Extracts financial statements
-- Transforms to common format
-- Loads into database
+All pipelines share the same helpers in `etl/common/`:
 
-### Dividend Data Pipeline
-- Fetches dividend information
-- Processes and stores
+- `common/env_loader.py` – loads the root `.env`
+- `common/config.py` – validated DB/API configs
+- `common/clients/` – AlphaVantage, Alpaca, Kafka, Redis wrappers
+- `common/db.py` – reusable PostgreSQL connector
+- `common/logging.py` – single logging configuration
 
-## Running Pipelines
+## Streaming Stack
 
-### Manual run
+`etl/streaming` hosts the Alpaca WebSocket producer plus Kafka consumers for trades/bars.  
+Docker Compose builds these services via the `etl/streaming/Dockerfile.*` files.
+
+## Running BCTC Pipeline
+
 ```bash
-python pipelines/stock_data_pipeline.py
+python etl/runner.py bctc --symbol AAPL --statements IS BS CF
 ```
 
-### Scheduled run
-```bash
-python schedulers/cron_jobs.py
+Environment requirements (root `.env`):
+
+```
+ALPHA_VANTAGE_API_KEY=...
+POSTGRES_HOST=...
+POSTGRES_PORT=...
+POSTGRES_DB=...
+POSTGRES_USER=...
+POSTGRES_PASSWORD=...
 ```

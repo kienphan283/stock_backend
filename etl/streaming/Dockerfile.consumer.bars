@@ -1,0 +1,15 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copy entire repository into container
+COPY ../.. /app
+
+ENV PYTHONPATH="/app:/app/etl"
+
+# Install dependencies for streaming services
+RUN pip install --no-cache-dir -r etl/streaming/requirements.txt
+
+# Run bars consumer
+CMD ["python", "etl/streaming/consumer_bars.py"]
+

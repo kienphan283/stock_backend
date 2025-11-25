@@ -47,6 +47,12 @@ export class PythonFinancialClient implements IFinancialClient {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
+        if (endpoint.startsWith("/quote")) {
+          logger.warn(
+            `Quote endpoint ${endpoint} returned ${response.status}. Falling back to null price.`
+          );
+          return { price: null } as T;
+        }
         throw new ExternalApiError(
           "Python API",
           `${response.status} ${response.statusText}`
@@ -62,6 +68,13 @@ export class PythonFinancialClient implements IFinancialClient {
         throw new ExternalApiError("Python API", "Response success: false");
       }
     } catch (error) {
+      if (endpoint.startsWith("/quote")) {
+        logger.warn(
+          `Quote endpoint ${endpoint} failed (${(error as Error).message}), returning null price fallback.`
+        );
+        return { price: null } as T;
+      }
+
       if (error instanceof ExternalApiError) {
         logger.apiError(endpoint, error);
         throw error;
@@ -133,5 +146,48 @@ export class PythonFinancialClient implements IFinancialClient {
 
   async getSummary(): Promise<any> {
     return this.call("/summary");
+  }
+
+  /**
+   * Generic GET method for direct API calls
+   * Used for proxying endpoints like /bars
+   */
+  async get(endpoint: string): Promise<any> {
+    const url = `${this.baseUrl}${endpoint}`;
+    logger.apiCall(endpoint, "GET");
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new ExternalApiError(
+          "Python API",
+          `${response.status} ${response.statusText}: ${errorText}`
+        );
+      }
+
+      const result = await response.json();
+      logger.apiSuccess(endpoint);
+      return result;
+    } catch (error) {
+      if (error instanceof ExternalApiError) {
+        logger.apiError(endpoint, error);
+        throw error;
+      }
+
+      logger.apiError(endpoint, error);
+      throw error;
+    }
   }
 }

@@ -31,11 +31,18 @@ python server.py
 ```
 
 ## Environment Variables
-Copy `.env.example` to `.env` and configure:
+Copy the project-wide `.env.example` to `.env` and configure at minimum:
 ```
-DATABASE_URL=postgresql://user:pass@localhost:5432/dbname
-REDIS_URL=redis://localhost:6379
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=Web_quan_li_danh_muc
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=your_password
+ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key
+REDIS_HOST=localhost
+REDIS_PORT=6379
 ```
+Alternatively supply a single `DATABASE_URL=postgresql://user:pass@host:port/dbname`.
 
 ## API Documentation
 Swagger UI: `http://localhost:8000/docs`

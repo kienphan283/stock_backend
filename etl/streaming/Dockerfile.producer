@@ -1,0 +1,14 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copy entire repo so /app/etl exists
+COPY ../.. /app
+
+ENV PYTHONPATH="/app:/app/etl"
+
+# Install dependencies for streaming services
+RUN pip install --no-cache-dir -r etl/streaming/requirements.txt
+
+# Run producer
+CMD ["python", "etl/streaming/producer.py"]

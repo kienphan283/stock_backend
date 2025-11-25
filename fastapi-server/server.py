@@ -1,6 +1,5 @@
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from services.data_loader import StockDataLoader
 import uvicorn
 from typing import Optional, Dict, Any, List, Literal
 from pydantic import BaseModel, Field
@@ -10,51 +9,29 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import json
 from collections import defaultdict
-import os
+
+from config.settings import settings
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Database configuration - Use environment variables with fallbacks
-DATABASE_URL = os.getenv("DATABASE_URL")
-if DATABASE_URL:
-    # Parse DATABASE_URL format: postgresql://user:password@host:port/dbname
-    import re
-    match = re.match(r'postgresql://([^:]+):([^@]+)@([^:]+):(\d+)/(.+)', DATABASE_URL)
-    if match:
-        DB_CONFIG = {
-            "user": match.group(1),
-            "password": match.group(2),
-            "host": match.group(3),
-            "port": int(match.group(4)),
-            "dbname": match.group(5)
-        }
-    else:
-        raise ValueError(f"Invalid DATABASE_URL format: {DATABASE_URL}")
-else:
-    # Fallback to individual environment variables
-    DB_CONFIG = {
-        "host": os.getenv("DB_HOST", "localhost"),
-        "port": int(os.getenv("DB_PORT", "5432")),
-        "dbname": os.getenv("DB_NAME", "Web_quan_li_danh_muc"),
-        "user": os.getenv("DB_USER", "postgres"),
-        "password": os.getenv("DB_PASSWORD")
-    }
-    
-    # Validate critical config
-    if not DB_CONFIG["password"]:
-        raise ValueError("DB_PASSWORD environment variable is required")
-
-logger.info(f"Database config: host={DB_CONFIG['host']}, dbname={DB_CONFIG['dbname']}, user={DB_CONFIG['user']}")
+# Database configuration
+DB_CONFIG = settings.db_config
+logger.info(
+    "Database config: host=%s, dbname=%s, user=%s",
+    DB_CONFIG["host"],
+    DB_CONFIG["dbname"],
+    DB_CONFIG["user"],
+)
 
 # Database schema constants
 MARKET_DATA_SCHEMA = "market_data_oltp"
 FINANCIAL_DATA_SCHEMA = "financial_oltp"
 
 # Optional Redis configuration - Use environment variables
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_HOST = settings.redis_host
+REDIS_PORT = settings.redis_port
 
 try:
     import redis
@@ -181,15 +158,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize data loader
-loader = StockDataLoader()
-
 @app.get("/", tags=["System"], summary="Health Check")
 async def root():
     """🏥 API health check and available endpoints"""
     return {
         "message": "Stock Data API is running",
-        "ticker": loader.ticker,
         "endpoints": [
             "/quote",
             "/profile",
@@ -223,10 +196,8 @@ async def get_quote(ticker: str = Query(..., description="Stock ticker symbol", 
                 
                 stock_result = cur.fetchone()
                 if not stock_result:
-                    # Fallback to CSV loader if not in database
-                    temp_loader = StockDataLoader(ticker.upper())
-                    data = temp_loader.get_quote()
-                    return {"success": True, "data": data}
+                    logger.warning(f"Ticker {ticker} not found in stocks table")
+                    return {"success": True, "data": None}
                 
                 stock_id = stock_result['stock_id']
                 
@@ -248,10 +219,8 @@ async def get_quote(ticker: str = Query(..., description="Stock ticker symbol", 
                 latest = cur.fetchone()
                 
                 if not latest:
-                    # Fallback to CSV loader if no price data
-                    temp_loader = StockDataLoader(ticker.upper())
-                    data = temp_loader.get_quote()
-                    return {"success": True, "data": data}
+                    logger.warning(f"No EOD price data for {ticker}")
+                    return {"success": True, "data": None}
                 
                 # Get previous close for change calculation
                 cur.execute(f"""
@@ -283,8 +252,202 @@ async def get_quote(ticker: str = Query(..., description="Stock ticker symbol", 
         finally:
             conn.close()
             
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching quote: {e}")
+        return {"success": True, "data": None}
+
+@app.get("/bars/{symbol}", tags=["Bar Data"], summary="Get Bar Data for Symbol")
+async def get_bars(
+    symbol: str,
+    limit: int = Query(100, description="Number of bars to return", ge=1, le=1000)
+):
+    """📊 Get OHLC bar data for a symbol from stock_bars_staging table"""
+    try:
+        logger.info(f"Fetching bars for {symbol}, limit: {limit}")
+        
+        conn = psycopg2.connect(**DB_CONFIG)
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Single JOIN query to get bars by symbol
+                cur.execute("""
+                    SELECT 
+                        b.ts as timestamp,
+                        b.open_price as open,
+                        b.high_price as high,
+                        b.low_price as low,
+                        b.close_price as close,
+                        b.volume,
+                        b.trade_count,
+                        b.vwap
+                    FROM market_data_oltp.stock_bars_staging b
+                    JOIN market_data_oltp.stocks s ON s.stock_id = b.stock_id
+                    WHERE s.stock_ticker = %s
+                    ORDER BY b.ts DESC
+                    LIMIT %s
+                """, (symbol.upper(), limit))
+                
+                bars = cur.fetchall()
+                
+                if not bars:
+                    # Check if symbol exists at all
+                    cur.execute("""
+                        SELECT stock_id 
+                        FROM market_data_oltp.stocks 
+                        WHERE stock_ticker = %s
+                    """, (symbol.upper(),))
+                    stock_result = cur.fetchone()
+                    if not stock_result:
+                        raise HTTPException(status_code=404, detail=f"Symbol {symbol} not found")
+                
+                # Convert to list of dicts
+                result = [dict(bar) for bar in bars]
+                
+                return {
+                    "success": True,
+                    "symbol": symbol.upper(),
+                    "count": len(result),
+                    "data": result
+                }
+                
+        finally:
+            conn.close()
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching bars: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/bars/{symbol}/range", tags=["Bar Data"], summary="Get Bar Data for Symbol in Date Range")
+async def get_bars_range(
+    symbol: str,
+    start: str = Query(..., description="Start date (ISO format: YYYY-MM-DDTHH:MM:SS)"),
+    end: str = Query(..., description="End date (ISO format: YYYY-MM-DDTHH:MM:SS)"),
+    limit: int = Query(1000, description="Maximum number of bars to return", ge=1, le=10000)
+):
+    """📊 Get OHLC bar data for a symbol within a date range"""
+    try:
+        from datetime import datetime
+        
+        logger.info(f"Fetching bars for {symbol} from {start} to {end}")
+        
+        # Parse dates
+        try:
+            start_dt = datetime.fromisoformat(start.replace('Z', '+00:00'))
+            end_dt = datetime.fromisoformat(end.replace('Z', '+00:00'))
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid date format: {e}")
+        
+        conn = psycopg2.connect(**DB_CONFIG)
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Single JOIN query to get bars by symbol in date range
+                cur.execute("""
+                    SELECT 
+                        b.ts as timestamp,
+                        b.open_price as open,
+                        b.high_price as high,
+                        b.low_price as low,
+                        b.close_price as close,
+                        b.volume,
+                        b.trade_count,
+                        b.vwap
+                    FROM market_data_oltp.stock_bars_staging b
+                    JOIN market_data_oltp.stocks s ON s.stock_id = b.stock_id
+                    WHERE s.stock_ticker = %s
+                    AND b.ts >= %s
+                    AND b.ts <= %s
+                    ORDER BY b.ts DESC
+                    LIMIT %s
+                """, (symbol.upper(), start_dt, end_dt, limit))
+                
+                bars = cur.fetchall()
+                
+                if not bars:
+                    # Check if symbol exists at all
+                    cur.execute("""
+                        SELECT stock_id 
+                        FROM market_data_oltp.stocks 
+                        WHERE stock_ticker = %s
+                    """, (symbol.upper(),))
+                    stock_result = cur.fetchone()
+                    if not stock_result:
+                        raise HTTPException(status_code=404, detail=f"Symbol {symbol} not found")
+                
+                # Convert to list of dicts
+                result = [dict(bar) for bar in bars]
+                
+                return {
+                    "success": True,
+                    "symbol": symbol.upper(),
+                    "start": start,
+                    "end": end,
+                    "count": len(result),
+                    "data": result
+                }
+                
+        finally:
+            conn.close()
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching bars range: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/bars/latest", tags=["Bar Data"], summary="Get Latest Bar Data for All Symbols")
+async def get_latest_bars(
+    limit: int = Query(10, description="Number of latest bars per symbol", ge=1, le=100)
+):
+    """📊 Get latest bar data for all symbols"""
+    try:
+        logger.info(f"Fetching latest bars for all symbols, limit: {limit}")
+        
+        conn = psycopg2.connect(**DB_CONFIG)
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Get latest bars for each symbol using JOIN
+                cur.execute("""
+                    SELECT DISTINCT ON (s.stock_ticker)
+                        s.stock_ticker as symbol,
+                        b.ts as timestamp,
+                        b.open_price as open,
+                        b.high_price as high,
+                        b.low_price as low,
+                        b.close_price as close,
+                        b.volume,
+                        b.trade_count,
+                        b.vwap
+                    FROM market_data_oltp.stock_bars_staging b
+                    JOIN market_data_oltp.stocks s ON b.stock_id = s.stock_id
+                    ORDER BY s.stock_ticker, b.ts DESC
+                    LIMIT %s
+                """, (limit * 10,))  # Get more to account for multiple symbols
+                
+                bars = cur.fetchall()
+                
+                # Group by symbol and take latest
+                symbol_bars = {}
+                for bar in bars:
+                    symbol = bar['symbol']
+                    if symbol not in symbol_bars:
+                        symbol_bars[symbol] = dict(bar)
+                
+                result = list(symbol_bars.values())
+                
+                return {
+                    "success": True,
+                    "count": len(result),
+                    "data": result
+                }
+                
+        finally:
+            conn.close()
+            
+    except Exception as e:
+        logger.error(f"Error fetching latest bars: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/profile", tags=["Company Info"], summary="Get Company Profile")
@@ -292,9 +455,39 @@ async def get_company_profile(ticker: str = Query(..., description="Stock ticker
     """🏢 Get company profile with industry, sector, and description"""
     try:
         logger.info(f"Fetching profile for {ticker}")
-        temp_loader = StockDataLoader(ticker.upper())
-        data = temp_loader.get_company_profile()
-        return {"success": True, "data": data}
+        conn = psycopg2.connect(**DB_CONFIG)
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(f"""
+                    SELECT 
+                        c.company_id AS ticker,
+                        c.company_name,
+                        c.sector,
+                        COALESCE(s.exchange, c.exchange) AS exchange,
+                        c.currency,
+                        s.stock_name,
+                        s.stock_ticker
+                    FROM {FINANCIAL_DATA_SCHEMA}.company c
+                    LEFT JOIN {MARKET_DATA_SCHEMA}.stocks s
+                        ON s.company_id = c.company_id OR s.stock_ticker = c.company_id
+                    WHERE c.company_id = %s
+                """, (ticker.upper(),))
+                result = cur.fetchone()
+                if not result:
+                    raise HTTPException(status_code=404, detail=f"Company {ticker} not found")
+                
+                response = {
+                    "name": result.get("company_name"),
+                    "ticker": result.get("ticker"),
+                    "exchange": result.get("exchange") or "UNKNOWN",
+                    "sector": result.get("sector") or "Unknown",
+                    "currency": result.get("currency") or "USD",
+                    "stockName": result.get("stock_name"),
+                    "stockTicker": result.get("stock_ticker") or result.get("ticker")
+                }
+                return {"success": True, "data": response}
+        finally:
+            conn.close()
     except Exception as e:
         logger.error(f"Error fetching profile: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -320,11 +513,7 @@ async def get_price_history(
 
                 stock_result = cur.fetchone()
                 if not stock_result:
-                    # Fallback to CSV loader if not in database
-                    logger.warning(f"Stock {ticker} not found in database, using CSV loader")
-                    temp_loader = StockDataLoader(ticker.upper())
-                    data = temp_loader.get_price_history(period)
-                    return {"success": True, "data": data}
+                    raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found in database")
 
                 stock_id = stock_result['stock_id']
 
@@ -449,9 +638,45 @@ async def get_dividends(ticker: str = Query(..., description="Stock ticker symbo
     """💰 Get historical dividend payments"""
     try:
         logger.info(f"Fetching dividends for {ticker}")
-        temp_loader = StockDataLoader(ticker.upper())
-        data = temp_loader.get_dividends()
-        return {"success": True, "data": data}
+        conn = psycopg2.connect(**DB_CONFIG)
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(f"""
+                    SELECT 
+                        fs.fiscal_year,
+                        fs.fiscal_quarter,
+                        fs.report_date,
+                        li.item_name,
+                        li.item_value,
+                        li.unit
+                    FROM {FINANCIAL_DATA_SCHEMA}.financial_statement fs
+                    JOIN {FINANCIAL_DATA_SCHEMA}.statement_type st 
+                        ON fs.statement_type_id = st.statement_type_id
+                    JOIN {FINANCIAL_DATA_SCHEMA}.financial_line_item li
+                        ON fs.statement_id = li.statement_id
+                    WHERE fs.company_id = %s
+                      AND (
+                        li.item_name ILIKE %s OR
+                        li.item_code ILIKE %s
+                      )
+                    ORDER BY fs.fiscal_year DESC, fs.fiscal_quarter DESC, li.item_name
+                """, (ticker.upper(), "%dividend%", "%dividend%"))
+                
+                rows = cur.fetchall()
+                dividends = [
+                    {
+                        "period": f"{row['fiscal_year']}-{row['fiscal_quarter']}",
+                        "reportDate": row["report_date"].isoformat() if row["report_date"] else None,
+                        "item": row["item_name"],
+                        "value": float(row["item_value"]) if row["item_value"] is not None else None,
+                        "unit": row["unit"]
+                    }
+                    for row in rows
+                ]
+                
+                return {"success": True, "count": len(dividends), "data": dividends}
+        finally:
+            conn.close()
     except Exception as e:
         logger.error(f"Error fetching dividends: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -461,9 +686,23 @@ async def get_news(ticker: str = Query(..., description="Stock ticker symbol", e
     """📰 Get latest company news and headlines"""
     try:
         logger.info(f"Fetching news for {ticker}, limit: {limit}")
-        temp_loader = StockDataLoader(ticker.upper())
-        data = temp_loader.get_news(limit)
-        return {"success": True, "data": data}
+        conn = psycopg2.connect(**DB_CONFIG)
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(f"""
+                    SELECT company_id
+                    FROM {FINANCIAL_DATA_SCHEMA}.company
+                    WHERE company_id = %s
+                """, (ticker.upper(),))
+                company = cur.fetchone()
+                if not company:
+                    raise HTTPException(status_code=404, detail=f"Company {ticker} not found")
+        finally:
+            conn.close()
+        
+        # News data is populated by upstream ETL or external services.
+        # For now, return an empty list indicating no stored articles.
+        return {"success": True, "data": {"newsTotalCount": 0, "news": []}}
     except Exception as e:
         logger.error(f"Error fetching news: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -759,48 +998,113 @@ def transform_financial_data(
 
 
 @app.get("/financials")
-async def get_financials_legacy():
-    """Get financial statements (legacy endpoint using data loader)"""
-    try:
-        logger.info(f"Fetching financials for {loader.ticker}")
-        data = loader.get_financials()
-        return {"success": True, "data": data}
-    except Exception as e:
-        logger.error(f"Error fetching financials: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+async def get_financials_legacy(
+    company: str = Query("IBM", description="Company ticker symbol", example="IBM"),
+    type: StatementType = Query(StatementType.IS, description="Statement type", example="IS"),
+    period: PeriodType = Query(PeriodType.quarterly, description="Period type", example="quarterly")
+):
+    """Legacy endpoint kept for backward compatibility - proxies to /api/financials"""
+    logger.info(f"Legacy financials endpoint called for company={company}, type={type}, period={period}")
+    return await get_financials(company=company, type=type, period=period)
 
 @app.get("/earnings")
-async def get_earnings():
-    """Get earnings data"""
+async def get_earnings(
+    ticker: str = Query(..., description="Stock ticker symbol", example="IBM"),
+    limit: int = Query(20, description="Max number of earnings metrics to return", ge=1, le=100)
+):
+    """Get earnings-related metrics derived from financial statements"""
     try:
-        logger.info(f"Fetching earnings for {loader.ticker}")
-        data = loader.get_earnings()
-        return {"success": True, "data": data}
+        logger.info(f"Fetching earnings metrics for {ticker}")
+        conn = psycopg2.connect(**DB_CONFIG)
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(f"""
+                    SELECT 
+                        fs.fiscal_year,
+                        fs.fiscal_quarter,
+                        fs.report_date,
+                        li.item_name,
+                        li.item_value,
+                        li.unit
+                    FROM {FINANCIAL_DATA_SCHEMA}.financial_statement fs
+                    JOIN {FINANCIAL_DATA_SCHEMA}.financial_line_item li
+                        ON fs.statement_id = li.statement_id
+                    WHERE fs.company_id = %s
+                      AND (
+                        li.item_name ILIKE %s
+                        OR li.item_code ILIKE %s
+                      )
+                    ORDER BY fs.fiscal_year DESC, fs.fiscal_quarter DESC, li.item_name
+                    LIMIT %s
+                """, (ticker.upper(), "%eps%", "%eps%", limit))
+                
+                rows = cur.fetchall()
+                if not rows:
+                    raise HTTPException(status_code=404, detail=f"No EPS metrics found for {ticker}")
+                
+                earnings = [
+                    {
+                        "period": f"{row['fiscal_year']}-{row['fiscal_quarter']}",
+                        "reportDate": row["report_date"].isoformat() if row["report_date"] else None,
+                        "metric": row["item_name"],
+                        "value": float(row["item_value"]) if row["item_value"] is not None else None,
+                        "unit": row["unit"]
+                    }
+                    for row in rows
+                ]
+                
+                return {"success": True, "count": len(earnings), "data": earnings}
+        finally:
+            conn.close()
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching earnings: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/refresh")
 async def refresh_data():
-    """Refresh data from Finnhub API"""
-    try:
-        logger.info("Refreshing data from Finnhub API...")
-        success = loader.refresh_data()
-        if success:
-            return {"success": True, "message": "Data refreshed successfully"}
-        else:
-            raise HTTPException(status_code=500, detail="Data refresh failed")
-    except Exception as e:
-        logger.error(f"Error refreshing data: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    """Notify clients that ETL refresh must be performed via dedicated pipeline"""
+    logger.info("Refresh endpoint invoked - no action performed (handled by ETL pipeline)")
+    raise HTTPException(
+        status_code=409,
+        detail="Data refresh is handled by the ETL pipeline. Please run `python etl/runner.py bctc --symbol <TICKER>`."
+    )
 
 @app.get("/summary")
 async def get_data_summary():
     """Get data summary and status"""
     try:
-        logger.info("Fetching data summary")
-        data = loader.get_data_summary()
-        return {"success": True, "data": data}
+        logger.info("Fetching data summary from PostgreSQL")
+        conn = psycopg2.connect(**DB_CONFIG)
+        summary = {}
+        try:
+            with conn.cursor() as cur:
+                cur.execute(f"SELECT COUNT(*) FROM {FINANCIAL_DATA_SCHEMA}.company")
+                summary["companies"] = cur.fetchone()[0]
+                
+                cur.execute(f"SELECT COUNT(*) FROM {FINANCIAL_DATA_SCHEMA}.financial_statement")
+                summary["financialStatements"] = cur.fetchone()[0]
+                
+                cur.execute(f"SELECT COUNT(*) FROM {FINANCIAL_DATA_SCHEMA}.financial_line_item")
+                summary["financialLineItems"] = cur.fetchone()[0]
+                
+                cur.execute(f"SELECT COUNT(*) FROM {MARKET_DATA_SCHEMA}.stocks")
+                summary["stocks"] = cur.fetchone()[0]
+                
+                cur.execute(f"SELECT COUNT(*) FROM {MARKET_DATA_SCHEMA}.stock_eod_prices")
+                summary["eodPrices"] = cur.fetchone()[0]
+                
+                cur.execute(f"SELECT COUNT(*) FROM {MARKET_DATA_SCHEMA}.stock_bars_staging")
+                summary["bars"] = cur.fetchone()[0]
+                
+                cur.execute(f"SELECT MAX(report_date) FROM {FINANCIAL_DATA_SCHEMA}.financial_statement")
+                latest_row = cur.fetchone()
+                summary["latestReportDate"] = latest_row[0].isoformat() if latest_row and latest_row[0] else None
+        finally:
+            conn.close()
+        
+        return {"success": True, "data": summary}
     except Exception as e:
         logger.error(f"Error fetching summary: {e}")
         raise HTTPException(status_code=500, detail=str(e))

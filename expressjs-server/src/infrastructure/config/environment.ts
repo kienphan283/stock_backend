@@ -32,6 +32,14 @@ const envSchema = z.object({
   LOG_LEVEL: z
     .enum(["error", "warn", "info", "debug"])
     .default("info"),
+
+  REDIS_HOST: z.string().default("redis"),  // FIXED: Default to "redis" for Docker service name
+  REDIS_PORT: z
+    .string()
+    .default("6379")
+    .transform((val: string) => parseInt(val, 10))
+    .pipe(z.number().min(1).max(65535)),
+  REDIS_CHANNEL_TRADES: z.string().default("stock:trades:pubsub"),
 });
 
 // Validate and parse environment variables
@@ -44,6 +52,10 @@ function validateEnv() {
       PYTHON_API_TIMEOUT: process.env.PYTHON_API_TIMEOUT,
       CORS_ORIGINS: process.env.CORS_ORIGINS,
       LOG_LEVEL: process.env.LOG_LEVEL,
+      // FIXED: Include Redis environment variables
+      REDIS_HOST: process.env.REDIS_HOST,
+      REDIS_PORT: process.env.REDIS_PORT,
+      REDIS_CHANNEL_TRADES: process.env.REDIS_CHANNEL_TRADES,
     });
 
     return parsed;
@@ -77,6 +89,11 @@ export const config = {
 
   // Logging
   logLevel: env.LOG_LEVEL,
+
+  // Redis
+  redisHost: env.REDIS_HOST,
+  redisPort: env.REDIS_PORT,
+  redisChannelTrades: env.REDIS_CHANNEL_TRADES,
 
   // Development
   isDevelopment: env.NODE_ENV !== "production",

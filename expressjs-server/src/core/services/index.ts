@@ -1,7 +1,8 @@
 /**
- * Services barrel export
+ * Core Services Exports
  */
 
-export * from "./stock.service";
-export * from "./portfolio.service";
-export * from "./dividend.service";
+export { StockService } from "./stock.service";
+export { PortfolioService } from "./portfolio.service";
+export { DividendService } from "./dividend.service";
+export { WebSocketService } from "./websocket.service";
