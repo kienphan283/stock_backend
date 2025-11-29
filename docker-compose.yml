@@ -98,7 +98,7 @@ services:
   # REST API Server (Python FastAPI)
   fastapi-server:
     build:
-      context: ./service/fastapi-server
+      context: ./services/fastapi-server
       dockerfile: ../../infra/docker/Dockerfile.fastapi
     container_name: stock_fastapi
     restart: unless-stopped
@@ -119,8 +119,8 @@ services:
     ports:
       - "${FASTAPI_PORT:-8000}:8000"
     volumes:
-      - ./service/fastapi-server:/app
-      - ../data:/data
+      - ./services/fastapi-server:/app
+      - ./data:/data
     networks:
       - stock_network
     depends_on:
@@ -135,7 +135,7 @@ services:
   # Express.js Server (Node.js)
   expressjs-server:
     build:
-      context: ./service/express-server
+      context: ./services/expressjs-server
       dockerfile: ../../infra/docker/Dockerfile.express
     container_name: stock_expressjs
     restart: unless-stopped
@@ -147,9 +147,7 @@ services:
     ports:
       - "${EXPRESSJS_PORT:-5000}:5000"
     volumes:
-      - ./service/express-server/src:/app/src
-      - ./service/express-server/package.json:/app/package.json
-      - ./service/express-server/tsconfig.json:/app/tsconfig.json
+      - ./services/expressjs-server/src:/app/src
     networks:
       - stock_network
     depends_on:
@@ -175,7 +173,7 @@ services:
   # ETL Service (batch pipelines)
   etl:
     build:
-      context: ./service/etl
+      context: ./services/etl
       dockerfile: ../../infra/docker/Dockerfile.etl
     container_name: stock_etl
     restart: unless-stopped
@@ -191,7 +189,7 @@ services:
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
     volumes:
-      - ./service/etl:/app
+      - ./services/etl:/app
     networks:
       - stock_network
     depends_on:
@@ -205,9 +203,16 @@ volumes:
     driver: local
   redis_data:
     driver: local
+  zookeeper_data:
+    driver: local
+  zookeeper_logs:
+    driver: local
+  kafka_data:
+    driver: local
 
 networks:
   stock_network:
     driver: bridge
+
 
 
