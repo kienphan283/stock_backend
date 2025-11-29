@@ -109,31 +109,33 @@ git clone <repository-url>
 cd stock_backend
 ```
 
-#### 2. Setup Express.js Server
+#### 2. Configure environment variables
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+#### 3. Setup Express.js Server
 ```bash
 cd expressjs-server
 npm install
-cp .env.example .env
-# Edit .env with your configuration
 npm run dev
 ```
 
-#### 3. Setup REST API Server
+#### 4. Setup REST API Server
 ```bash
 cd restapi-server
 pip install -r requirements.txt
-cp .env.example .env
-# Edit .env with database credentials
 python server.py
 ```
 
-#### 4. Setup Redis (Optional)
+#### 5. Setup Redis (Optional)
 ```bash
 cd redis
 bash scripts/start-redis.sh
 ```
 
-#### 5. Setup ETL Pipelines
+#### 6. Setup ETL Pipelines
 ```bash
 cd etl
 pip install -r requirements.txt
@@ -155,19 +157,27 @@ docker-compose down
 
 ## 🔧 Configuration
 
-### Express.js Server (.env)
+### Shared `.env` (root)
+All services read from the same root-level `.env`. Key entries:
 ```env
-PORT=5000
-NODE_ENV=development
-PYTHON_API_URL=http://localhost:8000
-CORS_ORIGINS=http://localhost:3000
-```
+# Database / Redis
+DB_HOST=postgres
+DB_PORT=5432
+DB_NAME=Web_quan_li_danh_muc
+DB_USER=postgres
+DB_PASSWORD=your_db_password
+REDIS_URL=redis://redis:6379
 
-### REST API Server (.env)
-```env
-DATABASE_URL=postgresql://user:password@localhost:5432/stock_db
-REDIS_URL=redis://localhost:6379
-CACHE_TTL=1800
+# External APIs
+ALPHA_VANTAGE_API_KEY=your_alpha_vantage_api_key
+ALPACA_API_KEY=your_alpaca_api_key
+ALPACA_SECRET_KEY=your_alpaca_secret_key
+
+# Services
+FASTAPI_PORT=8000
+EXPRESSJS_PORT=5000
+PYTHON_API_URL=http://fastapi-server:8000
+CORS_ORIGINS=http://localhost:3000
 ```
 
 ### Redis (redis.conf)

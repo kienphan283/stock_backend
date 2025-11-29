@@ -14,9 +14,7 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./fastapi-server/sql/Database.sql:/docker-entrypoint-initdb.d/01-database.sql
-      - ./fastapi-server/sql/financial_data.sql:/docker-entrypoint-initdb.d/02-financial.sql
-      - ./fastapi-server/sql/market_data.sql:/docker-entrypoint-initdb.d/03-market.sql
+      - ./infra/sql/:/docker-entrypoint-initdb.d/
     networks:
       - stock_network
     healthcheck:
@@ -35,7 +33,7 @@ services:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
-      - ./redis/config/redis.conf:/usr/local/etc/redis/redis.conf
+      - ./infra/configs/redis.conf:/usr/local/etc/redis/redis.conf
     networks:
       - stock_network
     healthcheck:
@@ -44,11 +42,64 @@ services:
       timeout: 3s
       retries: 5
 
+  # Zookeeper
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: stock_zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_logs:/var/lib/zookeeper/log
+      - ./infra/configs/zookeeper.properties:/etc/kafka/zookeeper.properties
+    networks:
+      - stock_network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Kafka Broker
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: stock_kafka
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+      - ./infra/configs/kafka.properties:/etc/kafka/server.properties
+    networks:
+      - stock_network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
   # REST API Server (Python FastAPI)
   fastapi-server:
     build:
-      context: ./fastapi-server
-      dockerfile: Dockerfile
+      context: ./services/fastapi-server
+      dockerfile: ../../infra/docker/Dockerfile.fastapi
     container_name: stock_fastapi
     restart: unless-stopped
     environment:
@@ -63,13 +114,13 @@ services:
       REDIS_PORT: 6379
       REDIS_URL: redis://redis:6379
       CACHE_TTL: ${CACHE_TTL:-1800}
-      # Alpha Vantage API Key (get free key from https://www.alphavantage.co/support/#api-key)
+      # Alpha Vantage API Key
       ALPHA_VANTAGE_API_KEY: ${ALPHA_VANTAGE_API_KEY:-demo}
     ports:
       - "${FASTAPI_PORT:-8000}:8000"
     volumes:
-      - ./fastapi-server:/app
-      - ../data:/data
+      - ./services/fastapi-server:/app
+      - ./data:/data
     networks:
       - stock_network
     depends_on:
@@ -77,13 +128,15 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: uvicorn server:app --host 0.0.0.0 --port 8000 --reload
+      kafka:
+        condition: service_started
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
   # Express.js Server (Node.js)
   expressjs-server:
     build:
-      context: ./expressjs-server
-      dockerfile: Dockerfile
+      context: ./services/expressjs-server
+      dockerfile: ../../infra/docker/Dockerfile.express
     container_name: stock_expressjs
     restart: unless-stopped
     environment:
@@ -94,42 +147,72 @@ services:
     ports:
       - "${EXPRESSJS_PORT:-5000}:5000"
     volumes:
-      - ./expressjs-server/src:/app/src
-      - ./expressjs-server/package.json:/app/package.json
-      - ./expressjs-server/tsconfig.json:/app/tsconfig.json
+      - ./services/expressjs-server/src:/app/src
     networks:
       - stock_network
     depends_on:
       - fastapi-server
     command: npm run dev
-  # ETL Service (DISABLED - Optional for scheduled jobs)
-  # etl:
-  #   build:
-  #     context: ./etl
-  #     dockerfile: Dockerfile
-  #   container_name: stock_etl
-  #   restart: unless-stopped
-  #   environment:
-  #     DB_HOST: host.docker.internal
-  #     DB_PORT: 5432
-  #     DB_NAME: ${DB_NAME:-Web_quan_li_danh_muc}
-  #     DB_USER: ${DB_USER:-postgres}
-  #     DB_PASSWORD: ${DB_PASSWORD:-123456}
-  #   volumes:
-  #     - ./etl:/app
-  #   networks:
-  #     - stock_network
-  #   extra_hosts:
-  #     - "host.docker.internal:host-gateway"
-  #   # Run scheduler or manual pipelines
-  #   # command: python schedulers/cron_jobs.py
+
+  # Kafka UI (Optional - for monitoring)
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: stock_kafka_ui
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: stock_cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - stock_network
+    depends_on:
+      - kafka
+
+  # ETL Service (batch pipelines)
+  etl:
+    build:
+      context: ./services/etl
+      dockerfile: ../../infra/docker/Dockerfile.etl
+    container_name: stock_etl
+    restart: unless-stopped
+    entrypoint: ["sleep", "infinity"]
+    environment:
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-Web_quan_li_danh_muc}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-123456}
+      ALPHA_VANTAGE_API_KEY: ${ALPHA_VANTAGE_API_KEY:-demo}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+    volumes:
+      - ./services/etl:/app
+    networks:
+      - stock_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
 
 volumes:
   postgres_data:
     driver: local
   redis_data:
     driver: local
+  zookeeper_data:
+    driver: local
+  zookeeper_logs:
+    driver: local
+  kafka_data:
+    driver: local
 
 networks:
   stock_network:
     driver: bridge
+
+
+
