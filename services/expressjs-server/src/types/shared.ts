@@ -4,6 +4,7 @@ export interface Stock {
   name: string;
   price: number;
   sector: string;
+  industry?: string;
 }
 
 export interface PortfolioPosition {

@@ -12,7 +12,6 @@ export class StockController {
   constructor(private readonly stockService: StockService) {}
 
   getAllStocks = asyncHandler(async (req: Request, res: Response) => {
-    console.log("[StockController] GET /api/stocks");
     const stocks = await this.stockService.getAllStocks();
     const response: ApiResponse = {
       success: true,
@@ -23,7 +22,6 @@ export class StockController {
 
   getStockByTicker = asyncHandler(async (req: Request, res: Response) => {
     const { ticker } = req.params;
-    console.log("[StockController] getStockByTicker, incoming symbol =", ticker);
     const stock = await this.stockService.getStockByTicker(ticker);
 
     const response: ApiResponse = {
@@ -35,7 +33,6 @@ export class StockController {
 
   getStockQuote = asyncHandler(async (req: Request, res: Response) => {
     const { ticker } = req.params;
-    console.log("[StockController] getStockQuote, incoming symbol =", ticker);
     const quote = await this.stockService.getQuote(ticker);
 
     const response: ApiResponse = {

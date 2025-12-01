@@ -29,6 +29,7 @@ class CompaniesService:
                     company_id as ticker,
                     company_name as name,
                     sector,
+                    industry,
                     exchange
                 FROM financial_oltp.company
                 ORDER BY company_name

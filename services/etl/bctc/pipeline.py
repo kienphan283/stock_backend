@@ -10,15 +10,18 @@ from typing import List, Optional
 
 from dotenv import load_dotenv
 
-from etl.bctc.extract.alphavantage_extractor import fetch_quarterly_reports
-from etl.bctc.load.database_loader import BCTCDatabaseLoader
-from etl.eod.pipeline import import_eod_prices_for_symbol
+from bctc.extract.alphavantage_extractor import fetch_quarterly_reports, fetch_company_overview
+from bctc.load.database_loader import BCTCDatabaseLoader
+from eod.pipeline import import_eod_prices_for_symbol
 
 
 CURRENT_FILE_PATH = Path(__file__).resolve()
-ENV_PATH = CURRENT_FILE_PATH.parents[3] / ".env"
-if ENV_PATH.exists():
-    load_dotenv(ENV_PATH)
+try:
+    ENV_PATH = CURRENT_FILE_PATH.parents[3] / ".env"
+    if ENV_PATH.exists():
+        load_dotenv(ENV_PATH)
+except IndexError:
+    pass  # Running in Docker, env vars already set
 
 API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
 DB_CONFIG = {
@@ -59,6 +62,15 @@ def run(symbol: Optional[str] = None, limit: Optional[int] = None) -> None:
     for ticker in companies:
         with loader._get_connection() as conn:
             loader.ensure_company(conn, ticker)
+            
+            # Fetch and update company overview (sector, industry, etc.)
+            try:
+                overview = fetch_company_overview(ticker, API_KEY)
+                if overview.get("Symbol"):  # Check if valid response
+                    loader.update_company_info(conn, ticker, overview)
+            except Exception as e:
+                print(f"Warning: Failed to fetch overview for {ticker}: {e}")
+            
             for code in ["IS", "BS", "CF"]:
                 reports = fetch_quarterly_reports(ticker, code, API_KEY)
                 loader.load_statement(conn, ticker, code, reports)

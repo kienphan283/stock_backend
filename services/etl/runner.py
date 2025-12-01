@@ -14,8 +14,8 @@ import argparse
 import sys
 from typing import Callable, Dict, List, Optional
 
-from etl.bctc.pipeline import run as run_bctc
-from etl.eod.pipeline import run as run_eod
+from bctc.pipeline import run as run_bctc
+from eod.pipeline import run as run_eod
 
 
 PipelineFunc = Callable[..., None]

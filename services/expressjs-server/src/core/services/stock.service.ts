@@ -27,6 +27,7 @@ export class StockService {
         name: company.name || company.ticker,
         price: 0,
         sector: company.sector || "Unknown",
+        industry: company.industry || undefined,
       }));
 
       return stocks;

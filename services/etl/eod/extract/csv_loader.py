@@ -22,9 +22,12 @@ from dotenv import load_dotenv
 
 
 CURRENT_FILE_PATH = Path(__file__).resolve()
-ENV_PATH = CURRENT_FILE_PATH.parents[3] / ".env"
-if ENV_PATH.exists():
-    load_dotenv(ENV_PATH)
+try:
+    ENV_PATH = CURRENT_FILE_PATH.parents[3] / ".env"
+    if ENV_PATH.exists():
+        load_dotenv(ENV_PATH)
+except IndexError:
+    pass  # Running in Docker, env vars already set
 
 
 class StockDataLoader:

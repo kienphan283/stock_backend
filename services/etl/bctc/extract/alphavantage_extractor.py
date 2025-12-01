@@ -45,3 +45,22 @@ def fetch_quarterly_reports(symbol: str, statement_code: str, api_key: str) -> L
     )
     return reports[:20]
 
+
+def fetch_company_overview(symbol: str, api_key: str) -> Dict:
+    """
+    Fetch company overview data from Alpha Vantage.
+    
+    Returns company info including sector, industry, marketCap, etc.
+    """
+    url = (
+        "https://www.alphavantage.co/query"
+        f"?function=OVERVIEW&symbol={symbol}&apikey={api_key}"
+    )
+    
+    logger.info("Requesting company overview for %s", symbol)
+    response = requests.get(url, timeout=30)
+    response.raise_for_status()
+    data = response.json()
+    
+    return data
+

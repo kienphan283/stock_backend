@@ -34,6 +34,28 @@ class BCTCDatabaseLoader:
             )
         conn.commit()
 
+    def update_company_info(self, conn, symbol: str, overview: Dict):
+        """
+        Update company information from Alpha Vantage overview data.
+        """
+        sector = overview.get("Sector")
+        industry = overview.get("Industry")
+        company_name = overview.get("Name")
+        
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE financial_oltp.company
+                SET sector = %s,
+                    industry = %s,
+                    company_name = COALESCE(%s, company_name)
+                WHERE company_id = %s
+                """,
+                (sector, industry, company_name, symbol),
+            )
+        conn.commit()
+        logger.info("Updated company info for %s: sector=%s, industry=%s", symbol, sector, industry)
+
     def load_statement(
         self,
         conn,

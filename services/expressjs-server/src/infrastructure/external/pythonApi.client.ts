@@ -31,8 +31,6 @@ export class PythonFinancialClient implements IFinancialClient {
    */
   private async call<T>(endpoint: string): Promise<T | null> {
     const url = `${this.baseUrl}${endpoint}`;
-    // Temporary debug logging for Express → FastAPI calls
-    console.log("[PythonFinancialClient] Calling FastAPI:", url);
     logger.apiCall(url, "GET");
 
     try {
@@ -139,8 +137,15 @@ export class PythonFinancialClient implements IFinancialClient {
   }
 
   async getCompanies(): Promise<any[] | null> {
-    const result = await this.call<{ companies: any[] }>("/api/companies");
-    return result?.companies || null;
+    try {
+      const url = `${this.baseUrl}/api/companies`;
+      const response = await fetch(url);
+      const result: any = await response.json();
+      return result?.companies || null;
+    } catch (error) {
+      logger.apiError("/api/companies", error);
+      return null;
+    }
   }
 
   async refreshData(): Promise<boolean> {

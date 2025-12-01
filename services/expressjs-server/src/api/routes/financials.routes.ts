@@ -23,8 +23,6 @@ export const createFinancialsRouter = (): Router => {
     async (req: Request, res: Response) => {
       try {
         const { company, type, period } = req.query;
-        
-        console.log("[Express FinancialsRoute] Incoming request params:", { company, type, period });
 
         // Call Python API
         const pythonApiUrl = config.pythonApiUrl;
@@ -36,14 +34,12 @@ export const createFinancialsRouter = (): Router => {
 
         const fullUrl = `${pythonApiUrl}/api/financials?${params}`;
         logger.info(`[Express FinancialsRoute] Fetching financials: ${fullUrl}`);
-        console.log("[Express FinancialsRoute] Calling FastAPI:", fullUrl);
 
         const response = await fetch(fullUrl);
 
         if (!response.ok) {
           const errorText = await response.text();
           logger.error(`[Express FinancialsRoute] Python API error: ${response.status} - ${errorText}`);
-          console.error("[Express FinancialsRoute] FastAPI error:", response.status, errorText);
 
           let errorDetail = "Failed to fetch financial data from Python API";
           try {
@@ -60,13 +56,11 @@ export const createFinancialsRouter = (): Router => {
         }
 
         const data = await response.json() as FinancialDataResponse;
-        console.log("[Express FinancialsRoute] FastAPI response received, periods:", data?.periods?.length || 0);
         logger.info(`[Express FinancialsRoute] Successfully fetched financials for ${company}, periods: ${data?.periods?.length || 0}`);
 
         return res.json(data);
       } catch (error) {
         logger.error("[Express FinancialsRoute] Error fetching financials:", error);
-        console.error("[Express FinancialsRoute] Exception:", error);
         return res.status(500).json({
           success: false,
           error: error instanceof Error ? error.message : "Internal server error",
