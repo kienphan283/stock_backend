@@ -22,15 +22,40 @@ class BCTCDatabaseLoader:
     def _get_connection(self):
         return psycopg2.connect(**self.db_config)
 
-    def ensure_company(self, conn, symbol: str):
+    def ensure_company(
+        self,
+        conn,
+        symbol: str,
+        company_name: str | None = None,
+        sector: str | None = None,
+        exchange: str | None = None,
+        currency: str | None = None,
+    ):
+        """
+        Ensure that a company row exists in financial_oltp.company.
+
+        - Uses Alpha Vantage metadata when available (name, sector, exchange, currency).
+        - Falls back to sensible defaults when fields are missing.
+        - On conflict, updates mutable fields while preserving an existing non-null sector.
+        """
+        name = company_name or f"{symbol} Corporation"
+        ex = exchange or "NYSE"
+        curr = currency or "USD"
+
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO financial_oltp.company (company_id, company_name, exchange)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (company_id) DO NOTHING
+                INSERT INTO financial_oltp.company
+                    (company_id, company_name, sector, exchange, currency)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (company_id) DO UPDATE
+                SET
+                    company_name = EXCLUDED.company_name,
+                    exchange     = EXCLUDED.exchange,
+                    currency     = EXCLUDED.currency,
+                    sector       = COALESCE(EXCLUDED.sector, financial_oltp.company.sector)
                 """,
-                (symbol, f"{symbol} Corporation", "NYSE"),
+                (symbol, name, sector, ex, curr),
             )
         conn.commit()
 

@@ -1,5 +1,6 @@
 from db.quote_repo import QuoteRepository
 from data_loaders.data_loader import StockDataLoader  # Keep data loader for fallback
+from typing import List, Dict
 
 class QuoteService:
     def __init__(self):
@@ -35,6 +36,15 @@ class QuoteService:
         except Exception as e:
             # Log error
             raise e
+
+    def get_previous_closes_batch(self, tickers: List[str]) -> Dict[str, float]:
+        """
+        Batch query để lấy previousClose cho nhiều symbols cùng lúc (tối ưu performance).
+        
+        Returns:
+            Dict {ticker: previousClose} - previousClose từ record đầu tiên (ngày mới nhất) của mỗi symbol
+        """
+        return self.repo.get_previous_closes_batch(tickers)
 
     def _get_fallback_quote(self, ticker: str):
         temp_loader = StockDataLoader(ticker.upper())

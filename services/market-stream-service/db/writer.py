@@ -9,6 +9,7 @@ Writes processed messages to PostgreSQL
 from psycopg2.extras import execute_values
 from config.settings import settings
 from datetime import datetime
+from dateutil import parser as date_parser
 import sys
 from pathlib import Path
 
@@ -40,6 +41,28 @@ class DatabaseWriter:
             context="get_connection",
             on_error=lambda exc: logger.error("Failed to obtain DB connection: %s", exc),
         )
+
+    def _normalize_timestamp(self, ts_raw):
+        """
+        Normalize incoming Alpaca timestamp to Python datetime.
+
+        Alpaca's websocket `t` field may be either:
+        - An ISO8601 string (e.g. "2025-01-27T15:41:00.123456789Z")
+        - An integer nanosecond epoch.
+
+        We handle both to avoid DB write failures while keeping nanosecond
+        precision when possible.
+        """
+        try:
+            if isinstance(ts_raw, str):
+                # Parse ISO8601 string
+                return date_parser.isoparse(ts_raw)
+            # Assume integer nanoseconds
+            return datetime.fromtimestamp(ts_raw / 1e9)
+        except Exception as exc:
+            logger.error("Failed to normalize timestamp %r: %s", ts_raw, exc)
+            # Fallback to "now" to avoid breaking the pipeline
+            return datetime.utcnow()
     
     def _get_stock_id(self, ticker: str, cursor) -> int:
         """Get stock_id from ticker symbol"""
@@ -66,7 +89,12 @@ class DatabaseWriter:
         return cursor.fetchone()[0]
     
     def write_trade(self, symbol: str, price: float, size: float, timestamp: int):
-        """Write trade to stock_trades_realtime table"""
+        """
+        Write trade to stock_trades_realtime table with accumulated volume.
+        
+        Volume được cộng dồn: lấy volume từ record mới nhất của stock đó,
+        cộng với size của trade mới, rồi lưu vào cột volume.
+        """
         conn = self._get_connection()
         if not conn:
             return
@@ -74,14 +102,45 @@ class DatabaseWriter:
             def _write_trade() -> bool:
                 with conn.cursor() as cursor:
                     stock_id = self._get_stock_id(symbol, cursor)
-                    ts = datetime.fromtimestamp(timestamp / 1e9)
+                    ts = self._normalize_timestamp(timestamp)
+                    
+                    # Lấy volume tích lũy từ record mới nhất của stock này
+                    cursor.execute(
+                        """
+                        SELECT COALESCE(volume, 0) 
+                        FROM market_data_oltp.stock_trades_realtime 
+                        WHERE stock_id = %s 
+                        ORDER BY ts DESC, trade_id DESC 
+                        LIMIT 1
+                        """,
+                        (stock_id,)
+                    )
+                    result = cursor.fetchone()
+                    previous_volume = float(result[0]) if result and result[0] is not None else 0.0
+                    
+                    # Cộng dồn: volume mới = volume cũ + size của trade mới
+                    accumulated_volume = previous_volume + size
+                    
+                    # Log để debug
+                    logger.info(
+                        f"[DB Writer] Writing trade for {symbol}: "
+                        f"size={size}, previous_volume={previous_volume}, "
+                        f"accumulated_volume={accumulated_volume}"
+                    )
+                    
+                    # Insert trade mới với volume tích lũy
                     cursor.execute(
                         """
                         INSERT INTO market_data_oltp.stock_trades_realtime 
-                        (stock_id, ts, price, size)
-                        VALUES (%s, %s, %s, %s)
+                        (stock_id, ts, price, size, volume)
+                        VALUES (%s, %s, %s, %s, %s)
                         """,
-                        (stock_id, ts, price, size),
+                        (stock_id, ts, price, size, accumulated_volume),
+                    )
+                    
+                    logger.info(
+                        f"[DB Writer] ✅ Successfully inserted trade for {symbol} "
+                        f"with accumulated_volume={accumulated_volume}"
                     )
                 return True
 
@@ -107,7 +166,7 @@ class DatabaseWriter:
             def _write_bar() -> bool:
                 with conn.cursor() as cursor:
                     stock_id = self._get_stock_id(symbol, cursor)
-                    ts = datetime.fromtimestamp(timestamp / 1e9)
+                    ts = self._normalize_timestamp(timestamp)
                     cursor.execute(
                         """
                         INSERT INTO market_data_oltp.stock_bars_staging 

@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     - YAML list: ['AAPL', 'MSFT']
     - JSON list string: '["AAPL","MSFT"]'
     - CSV string: 'AAPL,MSFT,GOOGL'
-    - Empty / missing: falls back to ['AAPL','MSFT','GOOGL']
+    - Empty / missing: falls back to INGEST_DEFAULT_SYMBOLS (all 30 tickers from shared.constants.tickers)
     """
 
     model_config = SettingsConfigDict(

@@ -10,7 +10,10 @@ from typing import List, Optional
 
 from dotenv import load_dotenv
 
-from etl.bctc.extract.alphavantage_extractor import fetch_quarterly_reports
+from etl.bctc.extract.alphavantage_extractor import (
+    fetch_quarterly_reports,
+    fetch_company_overview,
+)
 from etl.bctc.load.database_loader import BCTCDatabaseLoader
 from etl.eod.pipeline import import_eod_prices_for_symbol
 
@@ -56,7 +59,20 @@ def run(symbol: Optional[str] = None, limit: Optional[int] = None) -> None:
 
     for ticker in companies:
         with loader._get_connection() as conn:
-            loader.ensure_company(conn, ticker)
+            overview = fetch_company_overview(ticker, API_KEY)
+            company_name = overview.get("Name") if overview else None
+            sector = overview.get("Sector") if overview else None
+            exchange = overview.get("Exchange") if overview else None
+            currency = overview.get("Currency") if overview else None
+
+            loader.ensure_company(
+                conn,
+                ticker,
+                company_name=company_name,
+                sector=sector,
+                exchange=exchange,
+                currency=currency,
+            )
             for code in ["IS", "BS", "CF"]:
                 reports = fetch_quarterly_reports(ticker, code, API_KEY)
                 loader.load_statement(conn, ticker, code, reports)

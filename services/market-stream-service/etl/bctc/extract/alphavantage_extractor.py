@@ -45,3 +45,27 @@ def fetch_quarterly_reports(symbol: str, statement_code: str, api_key: str) -> L
     )
     return reports[:20]
 
+
+def fetch_company_overview(symbol: str, api_key: str) -> Dict:
+    """
+    Fetch company overview for a symbol.
+
+    This includes fundamental metadata such as Sector, Industry, Name, Exchange, Currency, etc.
+
+    NOTE: This helper is best-effort; callers should handle missing fields gracefully.
+    """
+    url = (
+        "https://www.alphavantage.co/query"
+        f"?function=OVERVIEW&symbol={symbol}&apikey={api_key}"
+    )
+
+    logger.info("Requesting OVERVIEW data for %s", symbol)
+    response = requests.get(url, timeout=30)
+    response.raise_for_status()
+    data = response.json()
+
+    if not isinstance(data, dict) or "Symbol" not in data:
+        logger.warning("No OVERVIEW data returned for %s", symbol)
+        return {}
+
+    return data

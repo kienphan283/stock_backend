@@ -9,16 +9,24 @@
 import { logger } from "../utils";
 import { wrapRedisCall, wrapWsEmit } from "../utils/errorHandler";
 import { RedisWebSocketBridge } from "./redis-bridge";
+import { startMockRealtime } from "./mock-realtime";
 
 export class SocketService {
   private io: any;
   private bridge: RedisWebSocketBridge;
+  private stopMockRealtime: (() => void) | null = null;
 
   constructor(io: any) {
     this.io = io;
     this.bridge = new RedisWebSocketBridge(io);
     this.setupConnection();
     this.startBridge();
+
+    // Optional mock realtime mode for development / testing when
+    // real Alpaca / Redis Streams data is not available.
+    if (process.env.MOCK_REALTIME_WS === "true") {
+      this.stopMockRealtime = startMockRealtime(this.io);
+    }
   }
 
   private setupConnection() {
@@ -79,6 +87,9 @@ export class SocketService {
   }
 
   public async stop() {
+    if (this.stopMockRealtime) {
+      this.stopMockRealtime();
+    }
     await this.bridge.stop();
   }
 }

@@ -5,8 +5,8 @@
  * Redis Streams → WebSocket Bridge
  *
  * Bridges Redis Stream messages into Socket.io events:
- *  - stock_trades_stream → trade_update
- *  - stock_bars_stream   → bar_update
+ *  - market:realtime:trades → trade_update
+ *  - market:realtime:bars   → bar_update
  *
  * Emits to room = symbol (e.g. "AAPL") so only subscribed clients receive updates.
  */
@@ -91,7 +91,11 @@ export class RedisWebSocketBridge {
     }
 
     this.running = true;
-    logger.info("[RedisBridge] Starting stream listeners...");
+    logger.info(
+      `[RedisBridge] Starting stream listeners for streams: ${STREAMS.join(
+        ", "
+      )}`
+    );
     void this.listen();
   }
 
@@ -199,6 +203,11 @@ export class RedisWebSocketBridge {
 
             const event =
               streamName === STREAM_TRADES ? "trade_update" : "bar_update";
+
+            logger.info(
+              `[RedisBridge] Received ${event} for symbol ${symbol} from stream ${streamName}`,
+              payload
+            );
 
             // Emit globally and to symbol-specific room
             await wrapWsEmit(

@@ -33,6 +33,11 @@ const createApp = () => {
       origin: config.corsOrigins,
       credentials: true,
     },
+    // Tối ưu WebSocket connection để tránh ngắt kết nối
+    pingTimeout: 60000, // 60 seconds - tăng timeout để tránh disconnect
+    pingInterval: 25000, // 25 seconds - gửi ping mỗi 25s để keep-alive
+    transports: ["websocket", "polling"], // Cho phép cả websocket và polling fallback
+    allowEIO3: true, // Backward compatibility
   });
 
   // Initialize WebSocket service (owns RedisWebSocketBridge lifecycle)

@@ -15,7 +15,8 @@ from api.routers import (
     earnings_router,
     refresh_router,
     summary_router,
-    companies_router
+    companies_router,
+    market_router,
 )
 from config.settings import settings
 from shared.python.utils.logging_config import get_logger
@@ -53,6 +54,7 @@ app.include_router(financial_router.router)
 app.include_router(companies_router.router)
 app.include_router(refresh_router.router)
 app.include_router(summary_router.router)
+app.include_router(market_router.router)
 
 @app.get("/", tags=["System"])
 async def root():

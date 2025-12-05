@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+
+# LEGACY SYNC ZONE:
+# These constants are documentation mirrors for the TypeScript gateway.
+# They are NOT used at runtime and must never override the TS definitions.
+#
 # NOTE: These constants must match the TypeScript mirror in
 # `services/gateway-service/src/config/realtime.constants.ts`.
 
@@ -25,9 +31,21 @@ consistent contract for Redis Streams.
 TRADES_REDIS_STREAM = "market:realtime:trades"
 BARS_REDIS_STREAM = "market:realtime:bars"
 
+# ------------------------------------------------------------------
 # Gateway-side Redis Streams & consumer group (as used in gateway-service)
-GATEWAY_STOCK_TRADES_STREAM = "stock_trades_stream"
-GATEWAY_STOCK_BARS_STREAM = "stock_bars_stream"
+#
+# NOTE: The gateway-service (TypeScript) is the source of truth.
+# These Python constants MUST mirror the actual gateway constants:
+#   market:realtime:trades
+#   market:realtime:bars
+#
+# WARNING:
+#   Do NOT import these in runtime path.
+#   Gateway does NOT read these constants from Python.
+#   They are maintained ONLY to keep shared/realtime consistent.
+# ------------------------------------------------------------------
+GATEWAY_STOCK_TRADES_STREAM = "market:realtime:trades"
+GATEWAY_STOCK_BARS_STREAM = "market:realtime:bars"
 
 GATEWAY_CONSUMER_GROUP = "gateway_stream_consumers"
 GATEWAY_CONSUMER_NAME = "gateway-consumer"

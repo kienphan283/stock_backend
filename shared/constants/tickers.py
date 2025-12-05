@@ -15,10 +15,31 @@ DEFAULT_TICKERS = [
     "NVDA",
     "META",
     "TSLA",
-    "BRK-B",
+    "BRK-B",  # giữ đúng format đang dùng trong DB/ETL
     "JNJ",
     "JPM",
     "IBM",
+
+    # Thêm 10–20 mã mới:
+    "V",
+    "WMT",
+    "PG",
+    "MA",
+    "XOM",
+    "UNH",
+    "HD",
+    "COST",
+    "BAC",
+    "KO",
+    "PEP",
+    "DIS",
+    "CSCO",
+    "ABT",
+    "AVGO",
+    "ORCL",
+    "TSM",
+    "CRM",
+    "NFLX",
 ]
 
 # Default companies (same as tickers for US stocks)

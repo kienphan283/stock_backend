@@ -60,3 +60,12 @@ class RedisClient:
             self.client.setex(key, ttl, json.dumps(value))
         except Exception as e:
             logger.error(f"Redis set error: {e}")
+
+    def setex(self, key: str, ttl: int, value: any):
+        """Set key with TTL (time to live) in seconds."""
+        if not self.enabled:
+            return
+        try:
+            self.client.setex(key, ttl, json.dumps(value) if not isinstance(value, str) else value)
+        except Exception as e:
+            logger.error(f"Redis setex error: {e}")
