@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     # API Keys
     ALPHA_VANTAGE_API_KEY: str = load_env("ALPHA_VANTAGE_API_KEY", "demo")
     FINNHUB_API_KEY: Optional[str] = load_env("FINNHUB_API_KEY")
+    
+    # Alpaca API (for EOD data fetching)
+    ALPACA_API_KEY: Optional[str] = load_env("ALPACA_API_KEY")
+    ALPACA_SECRET_KEY: Optional[str] = load_env("ALPACA_SECRET_KEY")
+    ALPACA_BASE_URL: str = load_env("ALPACA_BASE_URL", "https://data.alpaca.markets")
 
     class Config:
         env_file = ".env"

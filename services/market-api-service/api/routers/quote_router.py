@@ -64,3 +64,49 @@ async def get_previous_closes_batch(
     except Exception as e:
         logger.error(f"[quote_router] Error fetching previousCloses: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/quote/latest-eod", tags=["Real-Time Data"])
+async def get_latest_eod_batch(
+    symbols: str = Query(..., description="Comma-separated list of ticker symbols", example="AAPL,MSFT,GOOGL"),
+    auto_fetch: bool = Query(True, description="Automatically fetch and insert EOD if missing")
+):
+    """
+    Batch API để lấy latest EOD data (price, volume, changePercent) cho nhiều symbols.
+    Dùng khi market đóng để hiển thị dữ liệu của phiên vừa kết thúc.
+    
+    Nếu auto_fetch=True và không có dữ liệu của ngày mới nhất, sẽ tự động fetch từ API (Alpaca/yfinance) và insert vào DB.
+    
+    Response shape:
+    {
+      "success": true,
+      "data": {
+        "AAPL": {
+          "price": 284.15,
+          "volume": 12345678,
+          "changePercent": 1.23,
+          "previousClose": 280.50
+        },
+        ...
+      }
+    }
+    """
+    try:
+        # Parse comma-separated symbols
+        symbol_list = [s.strip().upper() for s in symbols.split(',') if s.strip()]
+        
+        if not symbol_list:
+            raise HTTPException(status_code=400, detail="At least one symbol is required")
+        
+        logger.info(f"[quote_router] GET /api/quote/latest-eod - symbols={len(symbol_list)}, auto_fetch={auto_fetch}")
+        
+        service = QuoteService()
+        eod_data = service.get_latest_eod_batch(symbol_list, auto_fetch=auto_fetch)
+        
+        logger.info(f"[quote_router] Returning latest EOD data for {len(eod_data)} symbols")
+        return {"success": True, "data": eod_data}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[quote_router] Error fetching latest EOD data: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
