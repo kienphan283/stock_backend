@@ -17,13 +17,44 @@ export const createFinancialsRouter = (): Router => {
    * GET /api/financials
    * Proxy financial data requests to Python API
    */
+  /**
+   * @swagger
+   * /financials:
+   *   get:
+   *     summary: Get financial data
+   *     tags: [Financials]
+   *     parameters:
+   *       - in: query
+   *         name: company
+   *         schema:
+   *           type: string
+   *         required: true
+   *         description: Company ticker symbol
+   *       - in: query
+   *         name: type
+   *         schema:
+   *           type: string
+   *           enum: [IS, BS, CF]
+   *         required: true
+   *         description: Type of financial statement (IS=Income Statement, BS=Balance Sheet, CF=Cash Flow)
+   *       - in: query
+   *         name: period
+   *         schema:
+   *           type: string
+   *           enum: [annual, quarterly]
+   *         required: true
+   *         description: Reporting period
+   *     responses:
+   *       200:
+   *         description: Financial data
+   */
   router.get(
     "/",
     validateQuery(getFinancialsQuerySchema),
     async (req: Request, res: Response) => {
       try {
         const { company, type, period } = req.query;
-        
+
         console.log("[Express FinancialsRoute] Incoming request params:", { company, type, period });
 
         // Call Python API

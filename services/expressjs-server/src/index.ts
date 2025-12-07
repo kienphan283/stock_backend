@@ -8,6 +8,8 @@ import cors from "cors";
 import helmet from "helmet";
 import { config } from "./infrastructure/config";
 import { logger } from "./utils";
+import * as swaggerUi from "swagger-ui-express";
+import { swaggerSpec } from "./infrastructure/swagger";
 
 // Infrastructure Layer
 import {
@@ -100,6 +102,9 @@ const createApp = () => {
       dividendController: container.dividendController,
     })
   );
+
+  // Swagger Documentation
+  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
   // Health check endpoint
   app.get("/health", (req, res) => {
