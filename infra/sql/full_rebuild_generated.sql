@@ -12,5 +12,13 @@
 \i '/docker-entrypoint-initdb.d/market_data_oltp/tables/001_init_schema.sql'
 \i '/docker-entrypoint-initdb.d/market_data_oltp/tables/002_create_tables_core.sql'
 
+-- 3) Create financial_oltp views
+\i '/docker-entrypoint-initdb.d/financial_oltp/views/201_income_statement_recent_10.sql'
+\i '/docker-entrypoint-initdb.d/financial_oltp/views/202_balance_sheet_recent_10.sql'
+\i '/docker-entrypoint-initdb.d/financial_oltp/views/203_cashflow_statement_recent_10.sql'
+\i '/docker-entrypoint-initdb.d/financial_oltp/views/204_income_statement_annual.sql'
+\i '/docker-entrypoint-initdb.d/financial_oltp/views/205_balance_sheet_annual.sql'
+\i '/docker-entrypoint-initdb.d/financial_oltp/views/206_cashflow_statement_annual.sql'
+
 
 

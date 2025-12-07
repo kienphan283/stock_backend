@@ -4,12 +4,7 @@
 
 const SYMBOL_REGEX = /^[A-Z][A-Z0-9\.\-]{0,9}$/;
 
-export class ValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ValidationError";
-  }
-}
+import { ValidationError } from "./errorHandler";
 
 export function normalizeSymbol(raw: string): string {
   const candidate = (raw || "").trim().toUpperCase();

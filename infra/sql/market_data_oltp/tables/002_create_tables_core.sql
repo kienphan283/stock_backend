@@ -72,17 +72,4 @@ CREATE TABLE stock_eod_prices (
 );
 
 CREATE INDEX idx_eod_stock_date ON stock_eod_prices (stock_id, trading_date DESC);
-INSERT INTO market_data_oltp.stocks (
-    company_id, 
-    stock_ticker, 
-    stock_name, 
-    exchange, 
-    delisted
-) 
-VALUES (
-    'IBM',                          -- company_id trùng với bảng financial_oltp.company
-    'IBM',                          -- mã chứng khoán
-    'International Business Machines Corporation', 
-    'NYSE',                        
-    FALSE                           
-);
+

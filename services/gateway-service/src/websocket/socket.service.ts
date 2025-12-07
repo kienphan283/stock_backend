@@ -7,8 +7,8 @@
  */
 
 import { logger } from "../utils";
-import { wrapRedisCall, wrapWsEmit } from "../utils/errorHandler";
-import { normalizeSymbol, ValidationError } from "../utils/validation";
+import { wrapRedisCall, wrapWsEmit, ValidationError } from "../utils/errorHandler";
+import { normalizeSymbol } from "../utils/validation";
 import { RedisWebSocketBridge } from "./redis-bridge";
 import { startMockRealtime } from "./mock-realtime";
 
@@ -44,7 +44,7 @@ export class SocketService {
             symbol,
           });
           void wrapWsEmit(() => socket.join(symbol), `join:${symbol}`);
-        } catch (err) {
+        } catch (err: any) {
           if (err instanceof ValidationError) {
             logger.warn(`[WebSocket] Rejecting invalid subscribe`, {
               client: socket.id,
@@ -66,7 +66,7 @@ export class SocketService {
             symbol,
           });
           void wrapWsEmit(() => socket.leave(symbol), `leave:${symbol}`);
-        } catch (err) {
+        } catch (err: any) {
           if (err instanceof ValidationError) {
             logger.warn(`[WebSocket] Rejecting invalid unsubscribe`, {
               client: socket.id,

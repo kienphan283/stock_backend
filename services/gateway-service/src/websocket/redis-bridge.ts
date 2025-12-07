@@ -13,8 +13,8 @@
 
 import { redisClient } from "../infrastructure/redis/redisClient";
 import { logger } from "../utils";
-import { wrapRedisCall, wrapWsEmit } from "../utils/errorHandler";
-import { normalizeSymbol, ValidationError } from "../utils/validation";
+import { wrapRedisCall, wrapWsEmit, ValidationError } from "../utils/errorHandler";
+import { normalizeSymbol } from "../utils/validation";
 import {
   GATEWAY_STOCK_TRADES_STREAM,
   GATEWAY_STOCK_BARS_STREAM,

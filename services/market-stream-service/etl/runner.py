@@ -88,22 +88,17 @@ def main(argv: Optional[List[str]] = None) -> int:
 
         logger.info("[runner] Running unified FINANCIAL ETL for symbols: %s", symbols)
 
-        connector = PostgresConnector(
-            host=load_env("DB_HOST"),
-            port=int(load_env("DB_PORT", "5432")),
-            dbname=load_env("DB_NAME"),
-            user=load_env("DB_USER"),
-            password=db_password,
-        )
-        bctc_loader = BCTCDatabaseLoader(
-            {
-                "host": connector.host,
-                "port": connector.port,
-                "dbname": connector.dbname,
-                "user": connector.user,
-                "password": connector.password,
-            }
-        )
+        db_config = {
+            "host": load_env("DB_HOST"),
+            "port": int(load_env("DB_PORT", "5432")),
+            "dbname": load_env("DB_NAME"),
+            "user": load_env("DB_USER"),
+            "password": db_password,
+        }
+
+        connector = PostgresConnector(config=db_config)
+        
+        bctc_loader = BCTCDatabaseLoader(db_config)
 
         for symbol in symbols:
             logger.info("[runner] Extracting all financial data for %s", symbol)
@@ -126,6 +121,11 @@ def main(argv: Optional[List[str]] = None) -> int:
             # EOD prices: delegate to existing EOD pipeline logic to keep behavior identical
             logger.info("[runner] Importing EOD prices via existing EOD pipeline for %s", symbol)
             import_eod_prices_for_symbol(symbol, conn=None)
+
+            # Avoid hitting Alpha Vantage free-tier rate limits (5 req/min)
+            # Each symbol takes ~4 requests (Overview, IS, BS, CF).
+            # Sleeping 18s ensures we stay safe.
+            time.sleep(18)
     elif args.job == "all":
         execute_bctc(args.symbol, args.limit)
         execute_eod(args.symbol, args.date, args.limit)
