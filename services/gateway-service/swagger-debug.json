@@ -1,0 +1,426 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Stock Analytics API",
+    "version": "1.0.0",
+    "description": "API documentation for the ExpressJS backend service",
+    "contact": {
+      "name": "API Support",
+      "email": "support@example.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5001/api",
+      "description": "Development server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/dividends": {
+      "get": {
+        "summary": "Get all dividends",
+        "tags": [
+          "Dividends"
+        ],
+        "responses": {
+          "200": {
+            "description": "List of all dividends"
+          }
+        }
+      }
+    },
+    "/dividends/{ticker}": {
+      "get": {
+        "summary": "Get dividends by ticker",
+        "tags": [
+          "Dividends"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ticker",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "description": "Stock ticker symbol"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dividend history for the stock"
+          }
+        }
+      }
+    },
+    "/financials": {
+      "get": {
+        "summary": "Get financial data",
+        "tags": [
+          "Financials"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "description": "Company ticker symbol"
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "income-statement",
+                "balance-sheet",
+                "cash-flow"
+              ]
+            },
+            "required": true,
+            "description": "Type of financial statement"
+          },
+          {
+            "in": "query",
+            "name": "period",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "annual",
+                "quarterly"
+              ]
+            },
+            "required": true,
+            "description": "Reporting period"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Financial data"
+          }
+        }
+      }
+    },
+    "/portfolio": {
+      "get": {
+        "summary": "Get portfolio items",
+        "tags": [
+          "Portfolio"
+        ],
+        "responses": {
+          "200": {
+            "description": "List of portfolio items with current values"
+          }
+        }
+      },
+      "post": {
+        "summary": "Add item to portfolio",
+        "tags": [
+          "Portfolio"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ticker",
+                  "quantity",
+                  "buyPrice"
+                ],
+                "properties": {
+                  "ticker": {
+                    "type": "string"
+                  },
+                  "quantity": {
+                    "type": "number"
+                  },
+                  "buyPrice": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Item added to portfolio"
+          }
+        }
+      }
+    },
+    "/portfolio/{ticker}": {
+      "patch": {
+        "summary": "Update portfolio item",
+        "tags": [
+          "Portfolio"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ticker",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "description": "Stock ticker symbol"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "quantity": {
+                    "type": "number"
+                  },
+                  "buyPrice": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Portfolio item updated"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove item from portfolio",
+        "tags": [
+          "Portfolio"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ticker",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "description": "Stock ticker symbol"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Item removed from portfolio"
+          }
+        }
+      }
+    },
+    "/stocks": {
+      "get": {
+        "summary": "Get all stocks",
+        "tags": [
+          "Stocks"
+        ],
+        "responses": {
+          "200": {
+            "description": "List of all stocks"
+          }
+        }
+      }
+    },
+    "/stocks/{ticker}": {
+      "get": {
+        "summary": "Get stock details by ticker",
+        "tags": [
+          "Stocks"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ticker",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "description": "Stock ticker symbol"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stock details"
+          },
+          "404": {
+            "description": "Stock not found"
+          }
+        }
+      }
+    },
+    "/stocks/{ticker}/quote": {
+      "get": {
+        "summary": "Get real-time quote for a stock",
+        "tags": [
+          "Stocks"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ticker",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "description": "Stock ticker symbol"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Real-time quote data"
+          }
+        }
+      }
+    },
+    "/stocks/{ticker}/price-history": {
+      "get": {
+        "summary": "Get price history for a stock",
+        "tags": [
+          "Stocks"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ticker",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "description": "Stock ticker symbol"
+          },
+          {
+            "in": "query",
+            "name": "period",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Time period (e.g., 1D, 1W, 1M)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Price history data"
+          }
+        }
+      }
+    },
+    "/stocks/{ticker}/news": {
+      "get": {
+        "summary": "Get news for a stock",
+        "tags": [
+          "Stocks"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ticker",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "description": "Stock ticker symbol"
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Number of news items to return"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of news articles"
+          }
+        }
+      }
+    },
+    "/stocks/{ticker}/financials": {
+      "get": {
+        "summary": "Get financial data for a stock",
+        "tags": [
+          "Stocks"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ticker",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "description": "Stock ticker symbol"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Financial data"
+          }
+        }
+      }
+    },
+    "/stocks/{ticker}/earnings": {
+      "get": {
+        "summary": "Get earnings data for a stock",
+        "tags": [
+          "Stocks"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ticker",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "description": "Stock ticker symbol"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Earnings data"
+          }
+        }
+      }
+    },
+    "/stocks/refresh": {
+      "post": {
+        "summary": "Refresh stock data",
+        "tags": [
+          "Stocks"
+        ],
+        "responses": {
+          "200": {
+            "description": "Data refresh initiated"
+          }
+        }
+      }
+    }
+  },
+  "tags": []
+}

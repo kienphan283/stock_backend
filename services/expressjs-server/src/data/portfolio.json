@@ -1,0 +1,33 @@
+[
+  {
+    "ticker": "AAPL",
+    "quantity": 50,
+    "cost": 175.00
+  },
+  {
+    "ticker": "GOOGL",
+    "quantity": 25,
+    "cost": 145.00
+  },
+  {
+    "ticker": "MSFT",
+    "quantity": 15,
+    "cost": 350.00
+  },
+  {
+    "ticker": "TSLA",
+    "quantity": 20,
+    "cost": 275.00
+  },
+  {
+    "ticker": "JPM",
+    "quantity": 30,
+    "cost": 155.25
+  },
+  {
+    "ticker": "JNJ",
+    "quantity": 40,
+    "cost": 148.90
+  }
+]
+

@@ -1,24 +1,21 @@
 /**
  * Financials Routes
- * Pure proxy routes to market-api-service
+ * Proxy requests to Python ETL API for financial data
  */
 
 import { Router, Request, Response } from "express";
-import { config } from "../../config";
+import { config } from "../../infrastructure/config";
 import { logger } from "../../utils";
-import { wrapHttpCall } from "../../utils/errorHandler";
 import { validateQuery } from "../validators/validate.middleware";
 import { getFinancialsQuerySchema } from "../validators/financials.validator";
 import { FinancialDataResponse } from "../../types/api.types";
-import { asyncHandler } from "../middlewares";
 
 export const createFinancialsRouter = (): Router => {
   const router = Router();
-  const baseUrl = config.marketApiUrl;
 
   /**
    * GET /api/financials
-   * Proxy financial data requests to market-api-service
+   * Proxy financial data requests to Python API
    */
   /**
    * @swagger
@@ -54,36 +51,32 @@ export const createFinancialsRouter = (): Router => {
   router.get(
     "/",
     validateQuery(getFinancialsQuerySchema),
-    asyncHandler(async (req: Request, res: Response) => {
+    async (req: Request, res: Response) => {
       try {
         const { company, type, period } = req.query;
 
+        console.log("[Express FinancialsRoute] Incoming request params:", { company, type, period });
 
-        logger.info(`[Gateway] Proxying financials request: company=${company}, type=${type}, period=${period}`);
-
+        // Call Python API
+        const pythonApiUrl = config.pythonApiUrl;
         const params = new URLSearchParams({
           company: company as string,
           type: type as string,
           period: period as string,
         });
 
-        const fullUrl = `${baseUrl}/api/financials?${params}`;
-        const response = await wrapHttpCall(
-          () => fetch(fullUrl),
-          `fetch:${fullUrl}`
-        );
-        if (!response) {
-          return res.status(502).json({
-            success: false,
-            error: "Upstream request failed",
-          });
-        }
+        const fullUrl = `${pythonApiUrl}/api/financials?${params}`;
+        logger.info(`[Express FinancialsRoute] Fetching financials: ${fullUrl}`);
+        console.log("[Express FinancialsRoute] Calling FastAPI:", fullUrl);
+
+        const response = await fetch(fullUrl);
 
         if (!response.ok) {
           const errorText = await response.text();
-          logger.error(`[Gateway] Market API error: ${response.status} - ${errorText}`);
+          logger.error(`[Express FinancialsRoute] Python API error: ${response.status} - ${errorText}`);
+          console.error("[Express FinancialsRoute] FastAPI error:", response.status, errorText);
 
-          let errorDetail = "Failed to fetch financial data from market-api-service";
+          let errorDetail = "Failed to fetch financial data from Python API";
           try {
             const errorJson = JSON.parse(errorText);
             errorDetail = errorJson.detail || errorDetail;
@@ -97,19 +90,20 @@ export const createFinancialsRouter = (): Router => {
           });
         }
 
-        const data = (await response.json()) as FinancialDataResponse;
-        logger.info(`[Gateway] Successfully proxied financials for ${company}, periods: ${data?.periods?.length || 0}`);
+        const data = await response.json() as FinancialDataResponse;
+        console.log("[Express FinancialsRoute] FastAPI response received, periods:", data?.periods?.length || 0);
+        logger.info(`[Express FinancialsRoute] Successfully fetched financials for ${company}, periods: ${data?.periods?.length || 0}`);
 
         return res.json(data);
       } catch (error) {
-        logger.error("[Gateway] Error proxying financials:", error);
+        logger.error("[Express FinancialsRoute] Error fetching financials:", error);
+        console.error("[Express FinancialsRoute] Exception:", error);
         return res.status(500).json({
           success: false,
           error: error instanceof Error ? error.message : "Internal server error",
         });
       }
-    })
-  );
+    });
 
   return router;
 };
