@@ -5,15 +5,20 @@ import re
 
 # Use user's quarterlyReports-based logic to build dictionary,
 # but connect to Postgres inside Docker.
-API_KEY = "DXUYXFRLVZKYJWQY"
+import os
+
+# Use environment variables injected by Docker (or defaults)
+API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
+if not API_KEY:
+    raise ValueError("ALPHA_VANTAGE_API_KEY environment variable is not set")
 SYMBOL = "IBM"
 
 DB_CONFIG = {
-    "host": "postgres",
-    "port": 5432,
-    "dbname": "Web_quan_li_danh_muc",
-    "user": "postgres",
-    "password": "123456",
+    "host": os.getenv("DB_HOST", "postgres"),
+    "port": int(os.getenv("DB_PORT", "5432")),
+    "dbname": os.getenv("DB_NAME", "Web_quan_li_danh_muc"),
+    "user": os.getenv("DB_USER", "postgres"),
+    "password": os.getenv("DB_PASSWORD"),
 }
 
 
