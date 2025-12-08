@@ -19,4 +19,7 @@ export interface Stock {
   description?: string;
   website?: string;
   logo?: string;
+  dividendYield?: number;
+  latestQuarter?: string;
+  earningsDate?: string;
 }

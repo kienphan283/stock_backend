@@ -8,7 +8,7 @@ import { Stock } from "../../types";
 import { logger, NotFoundError } from "../../utils";
 
 export class StockService {
-  constructor(private readonly financialClient: IFinancialClient) {}
+  constructor(private readonly financialClient: IFinancialClient) { }
 
   /**
    * Get all available stocks/companies
@@ -59,8 +59,8 @@ export class StockService {
         changePercent: quote.percentChange || 0,
         volume: 1000000, // Mock - not in current data
         marketCap: profile.marketCap || 0,
-        pe: 0, // Will be filled from ratios
-        eps: 0, // Will be filled from earnings
+        pe: quote.pe || 0,
+        eps: quote.eps || 0,
         high52: quote.high || 0,
         low52: quote.low || 0,
         sector: profile.industry || "Technology",
@@ -68,6 +68,8 @@ export class StockService {
         description: `${profile.name} is a leading company in the ${profile.industry} sector.`,
         website: profile.website || "",
         logo: profile.logo || "",
+        dividendYield: profile.dividendYield || 0,
+        latestQuarter: profile.latestQuarter || undefined,
       };
 
       return stock;

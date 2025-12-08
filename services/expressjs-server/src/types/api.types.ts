@@ -18,6 +18,8 @@ export interface QuoteData {
   low: number;
   open: number;
   previousClose: number;
+  pe?: number;
+  eps?: number;
 }
 
 // Company Profile Data
@@ -34,6 +36,9 @@ export interface ProfileData {
   sharesOutstanding: number;
   website: string;
   phone: string;
+  dividendYield?: number;
+  latestQuarter?: string;
+  sector?: string;
 }
 
 // Price History Data
