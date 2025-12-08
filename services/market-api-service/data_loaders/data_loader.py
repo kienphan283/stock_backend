@@ -98,58 +98,6 @@ class StockDataLoader:
                 "currentPrice": 0.0,
                 "change": 0.0,
                 "percentChange": 0.0,
-                "high": 0.0,
-                "low": 0.0,
-                "open": 0.0,
-                "previousClose": 0.0
-            }
-
-        # Try to match ticker
-        row = None
-        if 'ticker' in df.columns:
-            match = df[df['ticker'] == self.ticker]
-            if not match.empty:
-                row = match.iloc[0]
-        elif 'symbol' in df.columns:
-            match = df[df['symbol'] == self.ticker]
-            if not match.empty:
-                row = match.iloc[0]
-        
-        if row is None:
-            # Fallback to first row but log warning
-            row = df.iloc[0]
-
-        # Get values
-        current_price = self._format_number(row.get('current_price', 0))
-        change = self._format_number(row.get('change', 0))
-        percent_change = self._format_number(row.get('percent_change', 0), 4)
-
-        # Mock P/E and EPS if missing
-        pe = self._format_number(row.get('pe', 0))
-        if pe == 0 and current_price > 0:
-            # Generate deterministic mock P/E based on ticker string
-            seed = sum(ord(c) for c in self.ticker)
-            pe = 15 + (seed % 20) # Range 15-35
-        
-        eps = self._format_number(row.get('eps', 0))
-        if eps == 0 and pe > 0:
-            eps = current_price / pe
-
-        return {
-            "currentPrice": current_price,
-            "change": change,
-            "percentChange": percent_change,
-            "high": self._format_number(row.get('high', 0)),
-            "low": self._format_number(row.get('low', 0)),
-            "open": self._format_number(row.get('open', 0)),
-            "previousClose": self._format_number(row.get('previous_close', 0)),
-            "pe": self._format_number(pe),
-            "eps": self._format_number(eps)
-        }
-
-    def get_company_profile(self) -> Dict[str, Any]:
-        """Load company profile from PostgreSQL database"""
-
 
         try:
             conn = psycopg2.connect(**self.DB_CONFIG)
@@ -189,8 +137,35 @@ class StockDataLoader:
                 }
         except Exception as e:
             pass
+        
+        # Try reading from CSV
+        df = self._safe_read_csv("company_profile.csv")
+        if df is not None and not df.empty:
+            # Filter by ticker to ensure exact match
+            if 'ticker' in df.columns:
+                df = df[df['ticker'] == self.ticker]
 
-        # Fallback to default if database query fails
+            if not df.empty:
+                row = df.iloc[0]
+                return {
+                    "name": str(row.get('name', f"{self.ticker} Corporation")),
+                    "ticker": str(row.get('ticker', self.ticker)),
+                    "exchange": str(row.get('exchange', "NYSE")),
+                    "country": "US",
+                    "currency": "USD",
+                    "industry": str(row.get('industry', "Technology")),
+                    "marketCap": self._format_number(row.get('market_cap', 0)),
+                    "dividendYield": self._format_number(row.get('dividend_yield', 0), 4),
+                    "latestQuarter": str(row.get('latest_quarter', '')),
+                    "logo": str(row.get('logo', '')),
+                    "sector": str(row.get('sector', 'Technology')),
+                    "ipoDate": "",
+                    "sharesOutstanding": 0.0,
+                    "website": str(row.get('website', '')),
+                    "phone": ""
+                }
+
+        # Fallback to default if database query fails and no CSV match
         return {
             "name": f"{self.ticker} Corporation",
             "ticker": self.ticker,

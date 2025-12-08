@@ -50,7 +50,7 @@ class QuoteService:
             pe = 15 + (seed % 20) # Range 15-35
             eps = curr_price / pe if pe > 0 else 0
 
-            return {
+            result = {
                 "currentPrice": round(curr_price, 2),
                 "change": round(change, 2),
                 "percentChange": round(percent_change, 2),
@@ -61,6 +61,22 @@ class QuoteService:
                 "pe": round(pe, 2),
                 "eps": round(eps, 2)
             }
+            
+            # Enrich with mock data for missing fields (PE, EPS) or zero values
+            try:
+                mock_data = self._get_fallback_quote(ticker)
+                result['pe'] = mock_data.get('pe', 0)
+                result['eps'] = mock_data.get('eps', 0)
+                
+                # If DB has zero change but mock has value, use mock (common in dev)
+                if result['change'] == 0 and mock_data.get('change', 0) != 0:
+                    result['change'] = mock_data.get('change', 0)
+                    result['percentChange'] = mock_data.get('percentChange', 0)
+                    result['previousClose'] = mock_data.get('previousClose', 0)
+            except Exception:
+                pass
+                
+            return result
         except Exception as e:
             logger.error(f"Error in get_quote for {ticker}: {e}")
             # Fallback on error
