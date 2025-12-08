@@ -1,15 +1,15 @@
-ticker,name,exchange,sector,industry,market_cap,dividend_yield,latest_quarter,logo
-AAPL,Apple Inc.,NASDAQ,Technology,Consumer Electronics,2700000000000,0.56,2024Q3,https://logo.clearbit.com/apple.com
-MSFT,Microsoft Corp,NASDAQ,Technology,Software - Infrastructure,3100000000000,0.71,2024Q3,https://logo.clearbit.com/microsoft.com
-GOOGL,Alphabet Inc.,NASDAQ,Technology,Internet Content & Information,2150000000000,0.00,2024Q3,https://logo.clearbit.com/google.com
-TSLA,Tesla Inc.,NASDAQ,Consumer Cyclical,Auto Manufacturers,1100000000000,0.00,2024Q3,https://logo.clearbit.com/tesla.com
-ABT,Abbott Laboratories,NYSE,Healthcare,Medical Devices,217000000000,2.10,2024Q3,https://logo.clearbit.com/abbott.com
-AMZN,Amazon.com Inc,NASDAQ,Consumer Cyclical,Internet Retail,2300000000000,0.00,2024Q3,https://logo.clearbit.com/amazon.com
-BAC,Bank of America Corp,NYSE,Financial Services,Banks - Diversified,380000000000,2.45,2024Q3,https://logo.clearbit.com/bankofamerica.com
-BRK-B,Berkshire Hathaway Inc,NYSE,Financial Services,Insurance - Diversified,980000000000,0.00,2024Q3,https://logo.clearbit.com/berkshirehathaway.com
-AVGO,Broadcom Inc,NASDAQ,Technology,Semiconductors,600000000000,1.35,2024Q3,https://logo.clearbit.com/broadcom.com
-CSCO,Cisco Systems Inc,NASDAQ,Technology,Communication Equipment,235000000000,3.15,2024Q4,https://logo.clearbit.com/cisco.com
-COST,Costco Wholesale Corp,NASDAQ,Consumer Defensive,Discount Stores,360000000000,0.50,2024Q4,https://logo.clearbit.com/costco.com
-XOM,Exxon Mobil Corp,NYSE,Energy,Oil & Gas Integrated,520000000000,3.25,2024Q3,https://logo.clearbit.com/exxon.com
-IBM,International Business Machines,NYSE,Technology,Information Technology Services,270000000000,3.30,2024Q3,https://logo.clearbit.com/ibm.com
-JPM,JPMorgan Chase & Co,NYSE,Financial Services,Banks - Diversified,550000000000,2.20,2024Q3,https://logo.clearbit.com/jpmorganchase.com
+ticker,name,exchange,sector,industry,market_cap,dividend_yield,latest_quarter,logo,beta,revenue_yoy,net_income_yoy,fcf_yoy
+AAPL,Apple Inc.,NASDAQ,Technology,Consumer Electronics,2700000000000,0.56,2024Q3,https://logo.clearbit.com/apple.com,1.16,9.63,9.26,-8.62
+MSFT,Microsoft Corp,NASDAQ,Technology,Software - Infrastructure,3100000000000,0.71,2024Q3,https://logo.clearbit.com/microsoft.com,0.89,12.50,15.20,10.10
+GOOGL,Alphabet Inc.,NASDAQ,Technology,Internet Content & Information,2150000000000,0.00,2024Q3,https://logo.clearbit.com/google.com,1.05,11.20,25.40,18.50
+TSLA,Tesla Inc.,NASDAQ,Consumer Cyclical,Auto Manufacturers,1100000000000,0.00,2024Q3,https://logo.clearbit.com/tesla.com,2.30,3.50,-15.20,-25.10
+ABT,Abbott Laboratories,NYSE,Healthcare,Medical Devices,217000000000,2.10,2024Q3,https://logo.clearbit.com/abbott.com,0.72,4.80,5.10,3.20
+AMZN,Amazon.com Inc,NASDAQ,Consumer Cyclical,Internet Retail,2300000000000,0.00,2024Q3,https://logo.clearbit.com/amazon.com,1.15,13.80,45.20,22.10
+BAC,Bank of America Corp,NYSE,Financial Services,Banks - Diversified,380000000000,2.45,2024Q3,https://logo.clearbit.com/bankofamerica.com,1.35,-2.10,-5.40,-1.20
+BRK-B,Berkshire Hathaway Inc,NYSE,Financial Services,Insurance - Diversified,980000000000,0.00,2024Q3,https://logo.clearbit.com/berkshirehathaway.com,0.85,5.20,12.10,8.50
+AVGO,Broadcom Inc,NASDAQ,Technology,Semiconductors,600000000000,1.35,2024Q3,https://logo.clearbit.com/broadcom.com,1.20,15.40,18.20,14.50
+CSCO,Cisco Systems Inc,NASDAQ,Technology,Communication Equipment,235000000000,3.15,2024Q4,https://logo.clearbit.com/cisco.com,0.92,-5.20,-8.10,-4.50
+COST,Costco Wholesale Corp,NASDAQ,Consumer Defensive,Discount Stores,360000000000,0.50,2024Q4,https://logo.clearbit.com/costco.com,0.78,8.50,9.20,7.80
+XOM,Exxon Mobil Corp,NYSE,Energy,Oil & Gas Integrated,520000000000,3.25,2024Q3,https://logo.clearbit.com/exxon.com,0.95,-12.50,-15.20,-10.10
+IBM,International Business Machines,NYSE,Technology,Information Technology Services,270000000000,3.30,2024Q3,https://logo.clearbit.com/ibm.com,0.65,2.10,4.50,3.20
+JPM,JPMorgan Chase & Co,NYSE,Financial Services,Banks - Diversified,550000000000,2.20,2024Q3,https://logo.clearbit.com/jpmorganchase.com,1.10,4.20,6.50,5.10

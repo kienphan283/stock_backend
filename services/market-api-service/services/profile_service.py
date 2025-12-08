@@ -12,6 +12,7 @@ class ProfileService:
             logger.info(f"Fetching profile for {ticker}")
             loader = StockDataLoader(ticker.upper())
             data = loader.get_company_profile()
+            logger.info(f"[ProfileService] Data for {ticker}: keys={list(data.keys())}, pe={data.get('pe')}, eps={data.get('eps')}")
             return data
         except Exception as e:
             logger.error(f"Error fetching profile: {e}")

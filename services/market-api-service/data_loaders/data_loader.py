@@ -18,6 +18,11 @@ from psycopg2.extras import RealDictCursor
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 CURRENT_FILE_PATH = Path(__file__).resolve()
 ENV_PATH = CURRENT_FILE_PATH.parents[2] / ".env"
@@ -91,12 +96,14 @@ class StockDataLoader:
 
     def get_quote(self) -> Dict[str, Any]:
         """Load quote data and format for API response"""
+        print(f"[DEBUG] StockDataLoader.get_quote called for {self.ticker}")
         df = self._safe_read_csv("stock_quote.csv")
 
         if df is None or df.empty:
+            print(f"[DEBUG] stock_quote.csv not found or empty")
             return {
                 "currentPrice": 0.0,
-                "change": 0.0,
+                "change": 0.0, 
                 "percentChange": 0.0,
             }
 
@@ -129,6 +136,24 @@ class StockDataLoader:
                 div_yield_raw = result.get('dividend_yield')
                 div_yield = self._format_number(div_yield_raw) if div_yield_raw is not None else 1.25
 
+                # Get extended data (PE, EPS) from CSV if available
+                pe = 0.0
+                eps = 0.0
+                if df is not None and not df.empty:
+                    # Column names in CSV are lower case: ticker,current_price,change,percent_change,high,low,open,previous_close,pe,eps
+                    print(f"[DEBUG] Loaded stock_quote.csv with {len(df)} rows")
+                    row = df[df['ticker'] == self.ticker]
+                    if not row.empty:
+                        pe_raw = row.iloc[0].get('pe', 0)
+                        eps_raw = row.iloc[0].get('eps', 0)
+                        print(f"[DEBUG] Found {self.ticker} in CSV. Raw PE: {pe_raw}, Raw EPS: {eps_raw}")
+                        pe = self._format_number(pe_raw)
+                        eps = self._format_number(eps_raw)
+                    else:
+                        print(f"[DEBUG] Ticker {self.ticker} NOT found in stock_quote.csv. Available tickers: {df['ticker'].tolist()[:5]}...")
+                else:
+                    print(f"[DEBUG] stock_quote.csv is None or empty in {self.data_dir}")
+
                 return {
                     "name": result['name'],
                     "ticker": result['ticker'],
@@ -143,7 +168,9 @@ class StockDataLoader:
                     "website": "",
                     "phone": "",
                     "dividendYield": div_yield,
-                    "latestQuarter": datetime.now().strftime("%Y-%m-%d") # Today
+                    "latestQuarter": datetime.now().strftime("%Y-%m-%d"), # Today
+                    "pe": pe,
+                    "eps": eps
                 }
         except Exception as e:
             pass
@@ -175,28 +202,39 @@ class StockDataLoader:
                     "phone": ""
                 }
 
-        # Fallback to default if database query fails and no CSV match
+    def _get_fallback_profile(self) -> Dict[str, Any]:
+        """Return a basic fallback profile structure"""
         return {
             "name": f"{self.ticker} Corporation",
             "ticker": self.ticker,
-            "exchange": "NYSE",
-            "country": "US",
-            "currency": "USD",
+            "exchange": "NASDAQ",
             "industry": "Technology",
-            "marketCap": 215000000000, # Mock fallback
-            "ipoDate": "",
-            "logo": "",
-            "sharesOutstanding": 0.0,
-            "website": "",
-            "phone": "",
+            "sector": "Technology", 
+            "marketCap": 150000000000,
+            "ipoDate": "1980-12-12",
+            "logo": "https://logo.clearbit.com/apple.com",
+            "phone": "+1 408-996-1010",
+            "website": "https://www.apple.com",
+            "description": "Mock description because data was missing.",
+            "currency": "USD",
+            "country": "US",
+            "sharesOutstanding": 16000000000,
             "dividendYield": 1.5,
-            "latestQuarter": datetime.now().strftime("%Y-%m-%d")
+            "pe": 0.0,
+            "eps": 0.0,
+            "beta": 1.0,
+            "latestQuarter": datetime.now().strftime("%Y-%m-%d"),
+            "revenueGrowth": 0.0,
+            "netIncomeGrowth": 0.0,
+            "fcfGrowth": 0.0
         }
 
     # Load company profile data
     def get_company_profile(self):
         try:
+            logger.warning(f"[DEBUG] get_company_profile called for {self.ticker}. CWD: {os.getcwd()}, DataDir: {self.data_dir}")
             if not self._file_exists('company_profile.csv'):
+                logger.warning(f"[DEBUG] company_profile.csv not found via _file_exists")
                 return self._get_fallback_profile()
 
             df = self._safe_read_csv('company_profile.csv')
@@ -207,10 +245,17 @@ class StockDataLoader:
             # Or if it's a shared file, filter by ticker
             record = None
             if 'ticker' in df.columns:
-               record = df[df['ticker'] == self.ticker]
-               if not record.empty:
-                   record = record.iloc[0]
+               # Normalize ticker for matching
+               df['ticker'] = df['ticker'].astype(str).str.strip().str.upper()
+               target_ticker = str(self.ticker).strip().upper()
+               
+               logger.warning(f"[DEBUG] Matching profile for {target_ticker} in {df['ticker'].head().tolist()}")
+               
+               record_df = df[df['ticker'] == target_ticker]
+               if not record_df.empty:
+                   record = record_df.iloc[0]
                else:
+                   logger.warning(f"[DEBUG] Profile for {target_ticker} not found in CSV")
                    return self._get_fallback_profile()
             else:
                 # If no ticker column, assume single-record file
@@ -219,8 +264,9 @@ class StockDataLoader:
             def safe_get(key, default=""):
                  val = record.get(key, default)
                  return val if pd.notna(val) else default
-
-            return {
+            
+            # Initialize result with profile data
+            result = {
                 "name": safe_get('name', f"{self.ticker} Inc."),
                 "ticker": self.ticker,
                 "exchange": safe_get('exchange', 'NASDAQ'),
@@ -236,8 +282,46 @@ class StockDataLoader:
                 "country": safe_get('country', 'US'),
                 "sharesOutstanding": 0, # Not in CSV
                 "dividendYield": float(safe_get('dividend_yield', 0)),
-                "latestQuarter": safe_get('latest_quarter', '')
+                "latestQuarter": safe_get('latest_quarter', ''),
+                "beta": float(safe_get('beta', 0)),
+                "revenueGrowth": float(safe_get('revenue_yoy', 0)),
+                "netIncomeGrowth": float(safe_get('net_income_yoy', 0)),
+                "fcfGrowth": float(safe_get('fcf_yoy', 0)),
+                # Fallback PE/EPS from stock_quote.csv if this is being called directly
+                "pe": 0.0,
+                "eps": 0.0
             }
+
+            # Attempt to enrich with PE/EPS from stock_quote.csv
+            try:
+                 df_quote = self._safe_read_csv("stock_quote.csv")
+                 if df_quote is not None and not df_quote.empty:
+                     # Debug logging
+                     logger.warning(f"[DEBUG] CSV Loaded. Columns: {df_quote.columns.tolist()}")
+                     
+                     # Ensure string comparison and strip whitespace
+                     df_quote['ticker'] = df_quote['ticker'].astype(str).str.strip()
+                     target_ticker = str(self.ticker).strip()
+                     
+                     logger.warning(f"[DEBUG] Looking for ticker: '{target_ticker}' in first 5: {df_quote['ticker'].head().tolist()}")
+
+                     row_quote = df_quote[df_quote['ticker'] == target_ticker]
+                     
+                     if not row_quote.empty:
+                         pe_val = row_quote.iloc[0].get('pe', 0)
+                         eps_val = row_quote.iloc[0].get('eps', 0)
+                         logger.warning(f"[DEBUG] Found match for {target_ticker}. PE: {pe_val}, EPS: {eps_val}")
+                         result["pe"] = self._format_number(pe_val)
+                         result["eps"] = self._format_number(eps_val)
+                     else:
+                         logger.warning(f"[DEBUG] No match found for {target_ticker} in stock_quote.csv")
+                 else:
+                     logger.warning("[DEBUG] stock_quote.csv is None or empty")
+            except Exception as e:
+                 logger.error(f"[DEBUG] Error enriching profile with CSV: {e}")
+                 pass
+            
+            return result
 
         except Exception as e:
             print(f"Error loading profile: {e}")

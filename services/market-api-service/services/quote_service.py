@@ -32,10 +32,36 @@ class QuoteService:
             curr_price = float(latest['current_price'])
             percent_change = float(latest['percent_change'] or 0)
             
-            # If we have percent change but no absolute change in DB (not selecting it), calculate it
-            # price = prev * (1 + pct/100)  => prev = price / (1 + pct/100)
-            # change = price - prev
+            # Get profile data for additional fields (Beta, Growth, etc.)
+            try:
+                # Use data loader to get profile data (csv based)
+                loader = StockDataLoader(ticker.upper())
+                profile_data = loader.get_company_profile()
+            except Exception as e:
+                logger.warning(f"Could not load profile data for {ticker}: {e}")
+                profile_data = {}
+
+            # P/E and EPS logic:
+            # 1. Try to get from Quote DB record (if we stored it, but currently we don't for EOD)
+            # 2. Try to get from StockDataLoader (which reads stock_quote.csv)
+            # 3. Fallback to 0 (avoid random generation)
             
+            pe = 0.0
+            eps = 0.0
+            
+            # Try to get from CSV via loader fallback logic for consistent mock data
+            try:
+                quote_csv_data = loader.get_quote()
+                pe = quote_csv_data.get('pe', 0)
+                eps = quote_csv_data.get('eps', 0)
+            except Exception as e:
+                logger.error(f"Error loading CSV quote data for {ticker}: {e}")
+
+            if pe == 0 and curr_price > 0:
+                 # Last resort fallback if CSV missing: calculate from price if EPS known, or leave 0
+                 pass
+
+            # Calculate change if needed (same logic as before)
             if percent_change != 0:
                 prev_close_inferred = curr_price / (1 + percent_change / 100)
                 change = curr_price - prev_close_inferred
@@ -43,12 +69,6 @@ class QuoteService:
             else:
                 change = 0.0
                 previous_close = curr_price
-
-            # Mock P/E and EPS since they are not in EOD table
-            # Generate deterministic mock P/E based on ticker string
-            seed = sum(ord(c) for c in ticker.upper())
-            pe = 15 + (seed % 20) # Range 15-34
-            eps = curr_price / pe if pe > 0 else 0
 
             result = {
                 "currentPrice": round(curr_price, 2),
@@ -59,25 +79,21 @@ class QuoteService:
                 "open": round(float(latest['open_price'] or 0), 2),
                 "previousClose": round(previous_close, 2),
                 "pe": round(pe, 2),
-                "eps": round(eps, 2)
+                "eps": round(eps, 2),
+                # Add profile fields
+                "beta": profile_data.get('beta'),
+                "revenueGrowth": profile_data.get('revenueGrowth'),
+                "netIncomeGrowth": profile_data.get('netIncomeGrowth'),
+                "fcfGrowth": profile_data.get('fcfGrowth')
             }
             
-            # Enrich with mock data for missing fields (PE, EPS) or zero values
-            try:
-                mock_data = self._get_fallback_quote(ticker)
-                if result['pe'] == 0:
-                    result['pe'] = mock_data.get('pe', 0)
-                if result['eps'] == 0:
-                    result['eps'] = mock_data.get('eps', 0)
-                
-                # If DB has zero change but mock has value, use mock (common in dev)
-                if result['change'] == 0 and mock_data.get('change', 0) != 0:
-                    result['change'] = mock_data.get('change', 0)
-                    result['percentChange'] = mock_data.get('percentChange', 0)
-                    result['previousClose'] = mock_data.get('previousClose', 0)
-            except Exception:
-                pass
-                
+            # Enrich with mock data for missing fields if DB has zeros
+            # If DB has zero change but mock has value, use mock (common in dev)
+            if result['change'] == 0 and quote_csv_data.get('change', 0) != 0:
+                 result['change'] = quote_csv_data.get('change', 0)
+                 result['percentChange'] = quote_csv_data.get('percentChange', 0)
+                 result['previousClose'] = quote_csv_data.get('previousClose', 0)
+
             return result
         except Exception as e:
             logger.error(f"Error in get_quote for {ticker}: {e}")
@@ -183,4 +199,16 @@ class QuoteService:
 
     def _get_fallback_quote(self, ticker: str):
         temp_loader = StockDataLoader(ticker.upper())
-        return temp_loader.get_quote()
+        quote = temp_loader.get_quote()
+        
+        # Also enrich fallback with profile data
+        try:
+            profile = temp_loader.get_company_profile()
+            quote['beta'] = profile.get('beta')
+            quote['revenueGrowth'] = profile.get('revenueGrowth')
+            quote['netIncomeGrowth'] = profile.get('netIncomeGrowth')
+            quote['fcfGrowth'] = profile.get('fcfGrowth')
+        except:
+             pass
+             
+        return quote
