@@ -104,6 +104,23 @@ class StockDataLoader:
                 "previousClose": 0.0
             }
 
+        # Filter by ticker if column exists
+        if 'ticker' in df.columns:
+            df = df[df['ticker'] == self.ticker]
+        
+        if df is None or df.empty:
+            return {
+                "currentPrice": 0.0,
+                "change": 0.0,
+                "percentChange": 0.0,
+                "high": 0.0,
+                "low": 0.0,
+                "open": 0.0,
+                "previousClose": 0.0,
+                "pe": 0.0,
+                "eps": 0.0
+            }
+
         row = df.iloc[0]
         return {
             "currentPrice": self._format_number(row.get('current_price', 0)),
@@ -112,7 +129,9 @@ class StockDataLoader:
             "high": self._format_number(row.get('high', 0)),
             "low": self._format_number(row.get('low', 0)),
             "open": self._format_number(row.get('open', 0)),
-            "previousClose": self._format_number(row.get('previous_close', 0))
+            "previousClose": self._format_number(row.get('previous_close', 0)),
+            "pe": self._format_number(row.get('pe', 0)),
+            "eps": self._format_number(row.get('eps', 0))
         }
 
     def get_company_profile(self) -> Dict[str, Any]:
@@ -155,8 +174,35 @@ class StockDataLoader:
                 }
         except Exception as e:
             pass
+        
+        # Try reading from CSV
+        df = self._safe_read_csv("company_profile.csv")
+        if df is not None and not df.empty:
+            # Filter by ticker to ensure exact match
+            if 'ticker' in df.columns:
+                df = df[df['ticker'] == self.ticker]
 
-        # Fallback to default if database query fails
+            if not df.empty:
+                row = df.iloc[0]
+                return {
+                    "name": str(row.get('name', f"{self.ticker} Corporation")),
+                    "ticker": str(row.get('ticker', self.ticker)),
+                    "exchange": str(row.get('exchange', "NYSE")),
+                    "country": "US",
+                    "currency": "USD",
+                    "industry": str(row.get('industry', "Technology")),
+                    "marketCap": self._format_number(row.get('market_cap', 0)),
+                    "dividendYield": self._format_number(row.get('dividend_yield', 0), 4),
+                    "latestQuarter": str(row.get('latest_quarter', '')),
+                    "logo": str(row.get('logo', '')),
+                    "sector": str(row.get('sector', 'Technology')),
+                    "ipoDate": "",
+                    "sharesOutstanding": 0.0,
+                    "website": str(row.get('website', '')),
+                    "phone": ""
+                }
+
+        # Fallback to default if database query fails and no CSV match
         return {
             "name": f"{self.ticker} Corporation",
             "ticker": self.ticker,

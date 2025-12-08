@@ -1,0 +1,15 @@
+ticker,name,exchange,sector,industry,market_cap,dividend_yield,latest_quarter,logo
+AAPL,Apple Inc.,NASDAQ,Technology,Consumer Electronics,2700000000000,0.56,2024Q3,https://logo.clearbit.com/apple.com
+MSFT,Microsoft Corp,NASDAQ,Technology,Software - Infrastructure,3100000000000,0.71,2024Q3,https://logo.clearbit.com/microsoft.com
+GOOGL,Alphabet Inc.,NASDAQ,Technology,Internet Content & Information,2150000000000,0.00,2024Q3,https://logo.clearbit.com/google.com
+TSLA,Tesla Inc.,NASDAQ,Consumer Cyclical,Auto Manufacturers,1100000000000,0.00,2024Q3,https://logo.clearbit.com/tesla.com
+ABT,Abbott Laboratories,NYSE,Healthcare,Medical Devices,217000000000,2.10,2024Q3,https://logo.clearbit.com/abbott.com
+AMZN,Amazon.com Inc,NASDAQ,Consumer Cyclical,Internet Retail,2300000000000,0.00,2024Q3,https://logo.clearbit.com/amazon.com
+BAC,Bank of America Corp,NYSE,Financial Services,Banks - Diversified,380000000000,2.45,2024Q3,https://logo.clearbit.com/bankofamerica.com
+BRK-B,Berkshire Hathaway Inc,NYSE,Financial Services,Insurance - Diversified,980000000000,0.00,2024Q3,https://logo.clearbit.com/berkshirehathaway.com
+AVGO,Broadcom Inc,NASDAQ,Technology,Semiconductors,600000000000,1.35,2024Q3,https://logo.clearbit.com/broadcom.com
+CSCO,Cisco Systems Inc,NASDAQ,Technology,Communication Equipment,235000000000,3.15,2024Q4,https://logo.clearbit.com/cisco.com
+COST,Costco Wholesale Corp,NASDAQ,Consumer Defensive,Discount Stores,360000000000,0.50,2024Q4,https://logo.clearbit.com/costco.com
+XOM,Exxon Mobil Corp,NYSE,Energy,Oil & Gas Integrated,520000000000,3.25,2024Q3,https://logo.clearbit.com/exxon.com
+IBM,International Business Machines,NYSE,Technology,Information Technology Services,270000000000,3.30,2024Q3,https://logo.clearbit.com/ibm.com
+JPM,JPMorgan Chase & Co,NYSE,Financial Services,Banks - Diversified,550000000000,2.20,2024Q3,https://logo.clearbit.com/jpmorganchase.com
