@@ -57,6 +57,7 @@ const envSchema = z.object({
     .enum(["error", "warn", "info", "debug"])
     .default("info"),
 
+  REDIS_URL: z.string().optional(),
   REDIS_HOST: z.string().default("redis"),
   REDIS_PORT: z
     .string()
@@ -75,6 +76,7 @@ function validateEnv() {
       MARKET_API_TIMEOUT: process.env.MARKET_API_TIMEOUT || process.env.PYTHON_API_TIMEOUT,
       CORS_ORIGINS: process.env.CORS_ORIGINS,
       LOG_LEVEL: process.env.LOG_LEVEL,
+      REDIS_URL: process.env.REDIS_URL,
       REDIS_HOST: process.env.REDIS_HOST,
       REDIS_PORT: process.env.REDIS_PORT,
     });
@@ -114,6 +116,7 @@ export const config = {
   logLevel: env.LOG_LEVEL,
 
   // Redis
+  redisUrl: env.REDIS_URL,
   redisHost: env.REDIS_HOST,
   redisPort: env.REDIS_PORT,
 
