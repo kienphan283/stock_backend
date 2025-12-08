@@ -47,7 +47,7 @@ class QuoteService:
             # Mock P/E and EPS since they are not in EOD table
             # Generate deterministic mock P/E based on ticker string
             seed = sum(ord(c) for c in ticker.upper())
-            pe = 15 + (seed % 20) # Range 15-35
+            pe = 15 + (seed % 20) # Range 15-34
             eps = curr_price / pe if pe > 0 else 0
 
             result = {
