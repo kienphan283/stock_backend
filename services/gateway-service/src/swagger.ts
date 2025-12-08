@@ -15,8 +15,12 @@ const options: swaggerJsdoc.Options = {
         },
         servers: [
             {
+                url: "https://gateway-wqzu.onrender.com",
+                description: "Production Render Gateway",
+            },
+            {
                 url: `http://localhost:${config.port}`,
-                description: "Development server",
+                description: "Local Development Server",
             },
         ],
         components: {
