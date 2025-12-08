@@ -12,7 +12,8 @@ class BaseRepository:
             "port": settings.DB_PORT,
             "dbname": settings.DB_NAME,
             "user": settings.DB_USER,
-            "password": settings.DB_PASSWORD
+            "password": settings.DB_PASSWORD,
+            "sslmode": "require"
         }
 
     def get_connection(self):
