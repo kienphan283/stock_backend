@@ -11,7 +11,8 @@ import re
 from typing import Iterable, List, Tuple
 
 
-_SYMBOL_RE = re.compile(r"^[A-Z][A-Z0-9\.\-]{0,9}$")
+# Allow indices starting with ^ (e.g. ^GSPC) and increase max length
+_SYMBOL_RE = re.compile(r"^[\^A-Z][A-Z0-9\.\-]{0,19}$")
 
 
 class ValidationError(ValueError):

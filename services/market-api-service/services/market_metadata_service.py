@@ -23,6 +23,8 @@ class MarketMetadataService:
       """
       logger.info("[MarketMetadataService] Fetching stocks for heatmap")
       stocks = self.repo.get_all_active_stocks()
+      # Filter out indices (e.g. ^GSPC) from heatmap
+      stocks = [s for s in stocks if not s['symbol'].startswith('^')]
       return {
           "count": len(stocks),
           "stocks": stocks,
