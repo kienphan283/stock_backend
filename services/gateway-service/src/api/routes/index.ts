@@ -9,6 +9,7 @@ import { createStockRouter } from "./stocks.routes";
 import { createDividendRouter } from "./dividends.routes";
 import { createFinancialsRouter } from "./financials.routes";
 import { createMarketRouter } from "./market.routes";
+import { createQuoteRouter } from "./quote.routes";
 // import { createAuthRouter } from "./auth.routes";
 
 export const createApiRoutes = (): Router => {
@@ -20,6 +21,7 @@ export const createApiRoutes = (): Router => {
   router.use("/dividends", createDividendRouter());
   router.use("/financials", createFinancialsRouter());
   router.use("/market", createMarketRouter());
+  router.use("/quote", createQuoteRouter());
   // router.use("/auth", createAuthRouter());
 
   // Health check
