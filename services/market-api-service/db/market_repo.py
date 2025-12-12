@@ -48,7 +48,7 @@ class MarketMetadataRepository(BaseRepository):
         query = f"""
             SELECT 
                 s.stock_ticker AS symbol,
-                COALESCE(t.volume, 0) AS volume
+                COALESCE(t.size, 0) AS volume
             FROM market_data_oltp.stocks AS s
             LEFT JOIN LATERAL (
                 SELECT size
@@ -59,6 +59,7 @@ class MarketMetadataRepository(BaseRepository):
             ) AS t ON true
             WHERE s.stock_ticker IN ({placeholders})
                 AND s.delisted IS FALSE
+
         """
         
         logger.info(f"[MarketMetadataRepository] Fetching accumulated volumes for {len(symbols)} symbols")
