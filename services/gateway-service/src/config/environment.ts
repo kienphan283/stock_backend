@@ -63,6 +63,8 @@ const envSchema = z.object({
     .string()
     .default("6379")
     .transform((val: string) => parseInt(val, 10)),
+
+  JWT_SECRET: z.string().default("super-secret-key-change-me-in-prod"),
 });
 
 // Validate and parse environment variables
@@ -79,6 +81,7 @@ function validateEnv() {
       REDIS_URL: process.env.REDIS_URL,
       REDIS_HOST: process.env.REDIS_HOST,
       REDIS_PORT: process.env.REDIS_PORT,
+      JWT_SECRET: process.env.JWT_SECRET,
     });
 
     return parsed;
@@ -119,6 +122,9 @@ export const config = {
   redisUrl: env.REDIS_URL,
   redisHost: env.REDIS_HOST,
   redisPort: env.REDIS_PORT,
+
+  // Security
+  jwtSecret: env.JWT_SECRET,
 
   // Development
   isDevelopment: env.NODE_ENV !== "production",
