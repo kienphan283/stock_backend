@@ -1,4 +1,4 @@
-CREATE OR REPLACE VIEW vw_cashflow_statement_recent AS
+CREATE OR REPLACE VIEW financial_oltp.vw_cashflow_statement_recent AS
 SELECT
     fs.statement_id,
     c.company_id,

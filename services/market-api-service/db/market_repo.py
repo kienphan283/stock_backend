@@ -80,3 +80,35 @@ class MarketMetadataRepository(BaseRepository):
 
 
 
+    def check_stock_exists(self, ticker: str) -> bool:
+        """
+        Check if a stock ticker exists in the database (active or not).
+        """
+        query = "SELECT 1 FROM market_data_oltp.stocks WHERE stock_ticker = %s LIMIT 1"
+        result = self.execute_query(query, (ticker.upper(),), fetch_one=True)
+        return bool(result)
+
+    def add_stock(self, ticker: str, name: str = None, exchange: str = 'NASDAQ') -> str:
+        """
+        Add a new stock to the database.
+        """
+        import uuid
+        stock_id = str(uuid.uuid4())
+        ticker = ticker.upper()
+        if not name:
+            name = ticker  # Fallback to ticker as name
+            
+        query = """
+            INSERT INTO market_data_oltp.stocks (stock_id, stock_ticker, stock_name, exchange, is_etf, delisted)
+            VALUES (%s, %s, %s, %s, FALSE, FALSE)
+            ON CONFLICT (stock_ticker) DO UPDATE SET stock_name = EXCLUDED.stock_name
+            RETURNING stock_id
+        """
+        result = self.execute_query(query, (stock_id, ticker, name, exchange), fetch_one=True)
+        # If result is None (because of conflict where we didn't return?), try fetching
+        if result:
+            return result['stock_id'] if isinstance(result, dict) else result[0]
+            
+        # Fallback fetch if upsert returned nothing (though RETURNING should work)
+        return self.check_stock_exists(ticker) # Return info or True-ish
+

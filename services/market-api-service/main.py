@@ -17,16 +17,21 @@ from api.routers import (
     summary_router,
     companies_router,
     market_router,
-    # portfolio_router,
-    # auth_router,
+    portfolio_router,
+    auth_router,
 )
 from config.settings import settings
 from shared.python.utils.logging_config import get_logger
 from shared.python.utils.env import validate_env
 
+
 validate_env(["DB_PASSWORD"])
 
 logger = get_logger(__name__)
+
+# DEBUG: Check SMTP Settings
+print(f"DEBUG SMTP: SERVER={settings.MAIL_SERVER}, PORT={settings.MAIL_PORT}, USER={settings.MAIL_USERNAME}, PASS_LEN={len(settings.MAIL_PASSWORD) if settings.MAIL_PASSWORD else 0}")
+
 
 app = FastAPI(
     title="Market Data API",
@@ -58,8 +63,8 @@ app.include_router(companies_router.router)
 app.include_router(refresh_router.router)
 app.include_router(summary_router.router)
 app.include_router(market_router.router)
-# app.include_router(portfolio_router.router)
-# app.include_router(auth_router.router)
+app.include_router(portfolio_router.router)
+app.include_router(auth_router.router)
 
 @app.get("/", tags=["System"])
 async def root():

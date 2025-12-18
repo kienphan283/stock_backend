@@ -35,24 +35,24 @@ class Settings(BaseSettings):
     ALPHA_VANTAGE_API_KEY: str = load_env("ALPHA_VANTAGE_API_KEY", "demo")
     FINNHUB_API_KEY: str = load_env("FINNHUB_API_KEY", "")
     
-    # Authentication (Temporarily disabled)
-    # JWT_SECRET: str = load_env("JWT_SECRET", "super-secret-key-change-me-in-prod")
-    # JWT_ALGORITHM: str = load_env("JWT_ALGORITHM", "HS256")
-    # ACCESS_TOKEN_EXPIRE_MINUTES: int = int(load_env("ACCESS_TOKEN_EXPIRE_MINUTES", "1440")) # 1 day
+    # Authentication
+    JWT_SECRET: str = load_env("JWT_SECRET", "super-secret-key-change-me-in-prod")
+    JWT_ALGORITHM: str = load_env("JWT_ALGORITHM", "HS256")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(load_env("ACCESS_TOKEN_EXPIRE_MINUTES", "1440")) # 1 day
 
-    # OAuth (Temporarily disabled)
-    # GOOGLE_CLIENT_ID: str = load_env("GOOGLE_CLIENT_ID", "")
-    # GOOGLE_CLIENT_SECRET: str = load_env("GOOGLE_CLIENT_SECRET", "")
-    # FACEBOOK_CLIENT_ID: str = load_env("FACEBOOK_CLIENT_ID", "")
-    # FACEBOOK_CLIENT_ID: str = load_env("FACEBOOK_CLIENT_ID", "")
-    # FACEBOOK_CLIENT_SECRET: str = load_env("FACEBOOK_CLIENT_SECRET", "")
+    # OAuth
+    GOOGLE_CLIENT_ID: str = load_env("GOOGLE_CLIENT_ID", "")
+    GOOGLE_CLIENT_SECRET: str = load_env("GOOGLE_CLIENT_SECRET", "")
+    FACEBOOK_CLIENT_ID: str = load_env("FACEBOOK_CLIENT_ID", "")
+    FACEBOOK_CLIENT_SECRET: str = load_env("FACEBOOK_CLIENT_SECRET", "")
     
-    # Mail (Temporarily disabled)
-    # MAIL_USERNAME: str = load_env("MAIL_USERNAME", "")
-    # MAIL_PASSWORD: str = load_env("MAIL_PASSWORD", "")
-    # MAIL_FROM: str = load_env("MAIL_FROM", "")
-    # MAIL_PORT: int = int(load_env("MAIL_PORT", "587"))
-    # MAIL_SERVER: str = load_env("MAIL_SERVER", "")
+    # Mail
+    # Mail - HARDCODED DEBUG
+    MAIL_USERNAME: str = "huykien283@gmail.com"
+    MAIL_PASSWORD: str = "uuey fygc tuqp nist"
+    MAIL_FROM: str = "huykien283@gmail.com"
+    MAIL_PORT: int = 587
+    MAIL_SERVER: str = "smtp.gmail.com"
     
     # Alpaca API (for EOD data fetching - Kept active as it might be used by quote service)
     ALPACA_API_KEY: Optional[str] = load_env("ALPACA_API_KEY")

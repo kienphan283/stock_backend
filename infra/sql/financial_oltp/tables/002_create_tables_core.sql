@@ -1,3 +1,5 @@
+SET search_path TO financial_oltp;
+
 CREATE TABLE company (   
     company_id VARCHAR(20) PRIMARY KEY,
     company_name VARCHAR(255) NOT NULL,

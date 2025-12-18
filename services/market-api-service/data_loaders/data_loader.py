@@ -100,16 +100,15 @@ class StockDataLoader:
 
     def get_quote(self) -> Dict[str, Any]:
         """Load quote data and format for API response"""
-        print(f"[DEBUG] StockDataLoader.get_quote called for {self.ticker}")
-        df = self._safe_read_csv("stock_quote.csv")
+        # print(f"[DEBUG] StockDataLoader.get_quote called for {self.ticker}")
+        
+        # USER REQUEST: Disabled mock data fallback
+        df = None # self._safe_read_csv("stock_quote.csv")
 
         if df is None or df.empty:
-            print(f"[DEBUG] stock_quote.csv not found or empty")
-            return {
-                "currentPrice": 0.0,
-                "change": 0.0, 
-                "percentChange": 0.0,
-            }
+            # print(f"[DEBUG] stock_quote.csv usage disabled or empty")
+            # If no CSV, we return zeros, but we still try DB below to get company metadata
+            pass
 
         try:
             conn = psycopg2.connect(**self.DB_CONFIG)

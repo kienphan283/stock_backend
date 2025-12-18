@@ -74,6 +74,23 @@ async def get_accumulated_volumes(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/api/market/stocks/check", tags=["Market"])
+async def check_stock(
+    ticker: str = Query(..., description="Ticker symbol to check", example="AAPL")
+):
+    """
+    🔍 Check if a stock ticker exists in the database.
+    Used for frontend validation in forms.
+    """
+    try:
+        service = MarketMetadataService()
+        exists = service.check_stock_exists(ticker)
+        return {"success": True, "data": {"exists": exists, "symbol": ticker.upper()}}
+    except Exception as e:
+        logger.error(f"[MarketRouter] Error checking stock: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 
 
 
