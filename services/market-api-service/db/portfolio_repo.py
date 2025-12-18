@@ -83,13 +83,16 @@ class PortfolioRepo(BaseRepository):
         return self.fetch_all(query, tuple(params))
 
     # --- Holdings ---
-    def get_holdings(self, portfolio_id: str) -> List[Dict]:
+    def get_holdings(self, portfolio_id: str, include_sold: bool = False) -> List[Dict]:
         query = """
             SELECT holding_id, stock_ticker, total_shares, avg_cost_basis, first_buy_date
             FROM portfolio_oltp.portfolio_holdings
-            WHERE portfolio_id = %s AND total_shares > 0
-            ORDER BY stock_ticker
+            WHERE portfolio_id = %s
         """
+        if not include_sold:
+            query += " AND total_shares > 0"
+            
+        query += " ORDER BY stock_ticker"
         return self.fetch_all(query, (portfolio_id,))
 
     def _update_holding_cache(self, portfolio_id: str, ticker: str, cur=None):
@@ -143,16 +146,31 @@ class PortfolioRepo(BaseRepository):
                 first_buy_date = None
 
         if total_shares <= 0.000001:
-            # If shares are basically 0, delete the holding entry entirely
-            delete_query = """
-                DELETE FROM portfolio_oltp.portfolio_holdings
-                WHERE portfolio_id = %s AND stock_ticker = %s
-            """
-            params = (portfolio_id, ticker)
-            if cur:
-                cur.execute(delete_query, params)
+            # Instead of deleting, we now update to 0 shares to keep history if needed (Show Sold feature)
+            # But we should only keep it if there WAS transaction history. 
+            # If txs is empty (e.g. all transactions deleted), then we should delete the holding.
+            if not txs:
+                delete_query = """
+                    DELETE FROM portfolio_oltp.portfolio_holdings
+                    WHERE portfolio_id = %s AND stock_ticker = %s
+                """
+                params = (portfolio_id, ticker)
+                if cur:
+                    cur.execute(delete_query, params)
+                else:
+                    self.execute_query(delete_query, params)
             else:
-                self.execute_query(delete_query, params)
+                # Update to 0
+                update_zero_query = """
+                    UPDATE portfolio_oltp.portfolio_holdings
+                    SET total_shares = 0, avg_cost_basis = 0, updated_at = CURRENT_TIMESTAMP
+                    WHERE portfolio_id = %s AND stock_ticker = %s
+                """
+                params = (portfolio_id, ticker)
+                if cur:
+                    cur.execute(update_zero_query, params)
+                else:
+                    self.execute_query(update_zero_query, params)
         else:
             avg_cost_basis = total_cost / total_shares
             

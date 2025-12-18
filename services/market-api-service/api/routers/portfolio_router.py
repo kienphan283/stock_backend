@@ -29,11 +29,12 @@ class PortfolioCreate(BaseModel):
 
 @router.get("/api/portfolio/holdings", tags=["Portfolio"])
 async def get_holdings(
-    portfolio_id: str = Query(..., description="Portfolio ID")
+    portfolio_id: str = Query(..., description="Portfolio ID"),
+    include_sold: bool = Query(False, description="Include sold out positions")
 ):
     try:
         service = PortfolioService()
-        holdings = service.get_holdings_with_market_data(portfolio_id)
+        holdings = service.get_holdings_with_market_data(portfolio_id, include_sold=include_sold)
         return {"success": True, "data": holdings}
     except Exception as e:
         logger.error(f"Error fetching holdings: {e}")
