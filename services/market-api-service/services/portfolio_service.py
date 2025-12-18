@@ -104,12 +104,12 @@ class PortfolioService:
             note=note
         )
 
-    def get_holdings_with_market_data(self, portfolio_id: str) -> List[Dict]:
+    def get_holdings_with_market_data(self, portfolio_id: str, include_sold: bool = False) -> List[Dict]:
         """
         Get holdings and enrich them with current market price and daily change.
         Optimized to use batch fetching for market data.
         """
-        holdings = self.repo.get_holdings(portfolio_id)
+        holdings = self.repo.get_holdings(portfolio_id, include_sold=include_sold)
         if not holdings:
             return []
 
