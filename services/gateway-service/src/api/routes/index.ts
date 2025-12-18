@@ -5,24 +5,26 @@
 
 import { Router } from "express";
 import { createStockRouter } from "./stocks.routes";
-// import { createPortfolioRouter } from "./portfolio.routes";
+import { createPortfolioRouter } from "./portfolio.routes";
 import { createDividendRouter } from "./dividends.routes";
 import { createFinancialsRouter } from "./financials.routes";
 import { createMarketRouter } from "./market.routes";
 import { createQuoteRouter } from "./quote.routes";
-// import { createAuthRouter } from "./auth.routes";
+import { createAuthRouter } from "./auth.routes";
+import { createSearchRouter } from "./search.routes";
 
 export const createApiRoutes = (): Router => {
   const router = Router();
 
   // Mount routes (all are pure proxies)
   router.use("/stocks", createStockRouter());
-  // router.use("/portfolio", createPortfolioRouter());
+  router.use("/portfolio", createPortfolioRouter());
   router.use("/dividends", createDividendRouter());
   router.use("/financials", createFinancialsRouter());
   router.use("/market", createMarketRouter());
   router.use("/quote", createQuoteRouter());
-  // router.use("/auth", createAuthRouter());
+  router.use("/auth", createAuthRouter());
+  router.use("/search", createSearchRouter());
 
   // Health check
   router.get("/health", (req, res) => {

@@ -75,5 +75,28 @@ export const createPortfolioRouter = (): Router => {
   // We should align frontend to use POST /transactions or map it here.
   // For now, let's just fix the 404s we know about.
 
+  // DELETE /:portfolioId
+  router.delete("/:portfolioId", asyncHandler(async (req, res) => {
+    await proxyRequest(req, res, "DELETE", `/${req.params.portfolioId}`, null);
+  }));
+
+  // DELETE /:portfolioId/transactions/:transactionId
+  router.delete("/:portfolioId/transactions/:transactionId", asyncHandler(async (req, res) => {
+    const { portfolioId, transactionId } = req.params;
+    await proxyRequest(req, res, "DELETE", `/${portfolioId}/transactions/${transactionId}`);
+  }));
+
+  // DELETE /:portfolioId/holdings/:ticker
+  router.delete("/:portfolioId/holdings/:ticker", asyncHandler(async (req, res) => {
+    const { portfolioId, ticker } = req.params;
+    await proxyRequest(req, res, "DELETE", `/${portfolioId}/holdings/${ticker}`);
+  }));
+
+  // PUT /:portfolioId/transactions/:transactionId
+  router.put("/:portfolioId/transactions/:transactionId", asyncHandler(async (req, res) => {
+    const { portfolioId, transactionId } = req.params;
+    await proxyRequest(req, res, "PUT", `/${portfolioId}/transactions/${transactionId}`, req.body);
+  }));
+
   return router;
 };

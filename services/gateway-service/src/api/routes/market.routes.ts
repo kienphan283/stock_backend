@@ -79,5 +79,41 @@ export const createMarketRouter = (): Router => {
         })
     );
 
+
+
+    /**
+     * @swagger
+     * /api/market/stocks/check:
+     *   get:
+     *     summary: Check if a stock exists
+     *     tags: [Market]
+     *     parameters:
+     *       - in: query
+     *         name: ticker
+     *         required: true
+     *         schema:
+     *           type: string
+     *     responses:
+     *       200:
+     *         description: Stock existence check result
+     */
+    // GET /api/market/stocks/check - Check if stock exists
+    router.get(
+        "/stocks/check",
+        asyncHandler(async (req: Request, res: Response) => {
+            const { ticker } = req.query;
+            if (!ticker) {
+                return res.status(400).json({ success: false, error: "Missing ticker parameter" });
+            }
+
+            const url = `${baseUrl}/api/market/stocks/check?ticker=${ticker}`;
+            const upstream = await callUpstream(url);
+            if (!upstream) {
+                return res.status(502).json({ success: false, error: "Upstream request failed" });
+            }
+            res.status(upstream.status).json(upstream.data);
+        })
+    );
+
     return router;
 };

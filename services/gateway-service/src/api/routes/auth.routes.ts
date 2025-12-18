@@ -111,6 +111,48 @@ export const createAuthRouter = (): Router => {
         })
     );
 
+
+
+    /**
+     * POST /api/auth/verify-otp
+     */
+    router.post(
+        "/verify-otp",
+        asyncHandler(async (req: Request, res: Response) => {
+            const url = `${baseUrl}/api/auth/verify-otp`;
+            const upstream = await callUpstream(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(req.body),
+            });
+
+            if (!upstream) {
+                return res.status(502).json({ success: false, error: "Upstream request failed" });
+            }
+            res.status(upstream.status).json(upstream.data);
+        })
+    );
+
+    /**
+     * POST /api/auth/resend-otp
+     */
+    router.post(
+        "/resend-otp",
+        asyncHandler(async (req: Request, res: Response) => {
+            const url = `${baseUrl}/api/auth/resend-otp`;
+            const upstream = await callUpstream(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(req.body),
+            });
+
+            if (!upstream) {
+                return res.status(502).json({ success: false, error: "Upstream request failed" });
+            }
+            res.status(upstream.status).json(upstream.data);
+        })
+    );
+
     /**
      * PUT /api/auth/profile
      */

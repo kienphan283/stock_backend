@@ -58,6 +58,11 @@ const createApp = () => {
   // Middleware áp dụng cho Express API
   app.use(cors(corsOptions));
 
+  app.use((req, res, next) => {
+    logger.info(`Incoming Request: ${req.method} ${req.url} | Origin: ${req.headers.origin}`);
+    next();
+  });
+
   app.use(
     helmet({
       crossOriginResourcePolicy: { policy: "cross-origin" },
