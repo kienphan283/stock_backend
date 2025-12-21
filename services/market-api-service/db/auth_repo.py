@@ -19,6 +19,14 @@ class AuthRepository(BaseRepository):
         """
         return self.execute_query(query, (email,), fetch_one=True)
 
+    def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+        query = """
+            SELECT user_id, email, password_hash, full_name, is_verified, avatar_url, created_at
+            FROM identity_oltp.users
+            WHERE user_id = %s
+        """
+        return self.execute_query(query, (user_id,), fetch_one=True)
+
     def create_user(self, email: str, password_hash: Optional[str] = None, full_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
         query = """
             INSERT INTO identity_oltp.users (email, password_hash, full_name)

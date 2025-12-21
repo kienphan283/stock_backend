@@ -29,6 +29,7 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
     password: Optional[str] = None
+    current_password: Optional[str] = None
 
 # --- Endpoints ---
 
@@ -111,3 +112,21 @@ async def update_profile(
             "email": updated_user.get("email")
         }
     }
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+class PasswordResetConfirm(BaseModel):
+    email: EmailStr
+    otp: str
+    new_password: str
+
+@router.post("/api/auth/forgot-password", tags=["Authentication"])
+async def forgot_password(data: PasswordResetRequest, background_tasks: BackgroundTasks):
+    """Request password reset OTP."""
+    return await auth_service.request_password_reset(data.email, background_tasks)
+
+@router.post("/api/auth/reset-password", response_model=Token, tags=["Authentication"])
+async def reset_password(data: PasswordResetConfirm):
+    """Reset password with OTP and auto-login."""
+    return auth_service.reset_password(data.email, data.otp, data.new_password)

@@ -193,5 +193,45 @@ export const createAuthRouter = (): Router => {
             res.status(upstream.status).json(upstream.data);
         })
     );
+    /**
+     * POST /api/auth/forgot-password
+     */
+    router.post(
+        "/forgot-password",
+        asyncHandler(async (req: Request, res: Response) => {
+            const url = `${baseUrl}/api/auth/forgot-password`;
+            const upstream = await callUpstream(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(req.body),
+            });
+
+            if (!upstream) {
+                return res.status(502).json({ success: false, error: "Upstream request failed" });
+            }
+            res.status(upstream.status).json(upstream.data);
+        })
+    );
+
+    /**
+     * POST /api/auth/reset-password
+     */
+    router.post(
+        "/reset-password",
+        asyncHandler(async (req: Request, res: Response) => {
+            const url = `${baseUrl}/api/auth/reset-password`;
+            const upstream = await callUpstream(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(req.body),
+            });
+
+            if (!upstream) {
+                return res.status(502).json({ success: false, error: "Upstream request failed" });
+            }
+            res.status(upstream.status).json(upstream.data);
+        })
+    );
+
     return router;
 };
