@@ -21,7 +21,7 @@ export class SocketService {
     this.io = io;
     this.bridge = new RedisWebSocketBridge(io);
     this.setupConnection();
-    this.startBridge();
+    void this.startBridge();
 
     // Optional mock realtime mode for development / testing when
     // real Alpaca / Redis Streams data is not available.
