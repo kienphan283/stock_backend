@@ -1,0 +1,19 @@
+# Market Ingest Service (Python - Alpaca WebSocket → Kafka)
+# Build context: stock_backend/ (repo root)
+FROM python:3.11-slim
+
+WORKDIR /app
+
+ENV PYTHONPATH="/app"
+
+# Install dependencies
+COPY services/market-ingest-service/requirements.txt .
+RUN pip install --no-cache-dir --default-timeout=300 -r requirements.txt
+
+# Copy service code
+COPY services/market-ingest-service/ .
+
+# Copy shared modules
+COPY shared/ ./shared/
+
+CMD ["python", "main.py"]
