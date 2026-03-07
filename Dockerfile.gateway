@@ -19,6 +19,7 @@ RUN npm run build
 # Remove dev dependencies after build
 RUN npm prune --production
 
-EXPOSE 5000
+# Railway injects PORT env var dynamically; EXPOSE is informational
+EXPOSE 8080
 
 CMD ["node", "dist/index.js"]
