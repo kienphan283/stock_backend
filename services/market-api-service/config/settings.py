@@ -17,7 +17,6 @@ class Settings(BaseSettings):
     DB_USER: str = load_env("DB_USER", "postgres")
     DB_PASSWORD: str
     DB_SSL_MODE: str = load_env("DB_SSL_MODE", "require")
-    DB_SSL_MODE: str = load_env("DB_SSL_MODE", "disable")
 
     # Redis
     REDIS_HOST: str = load_env("REDIS_HOST", "redis")
