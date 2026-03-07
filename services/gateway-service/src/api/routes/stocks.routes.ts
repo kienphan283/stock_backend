@@ -20,8 +20,16 @@ export const createStockRouter = (): Router => {
   const router = Router();
   const baseUrl = config.marketApiUrl;
 
+  const UPSTREAM_TIMEOUT_MS = 8000;
+
   const callUpstream = async (url: string, options?: RequestInit) => {
-    const response = await wrapHttpCall(() => fetch(url, options), `fetch:${url}`);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+    const response = await wrapHttpCall(
+      () => fetch(url, { ...options, signal: controller.signal }),
+      `fetch:${url}`
+    );
+    clearTimeout(timer);
     if (!response) {
       return null;
     }

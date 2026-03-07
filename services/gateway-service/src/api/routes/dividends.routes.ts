@@ -12,8 +12,16 @@ import { wrapHttpCall } from "../../utils/errorHandler";
 export const createDividendRouter = (): Router => {
   const router = Router();
   const baseUrl = config.marketApiUrl;
+  const UPSTREAM_TIMEOUT_MS = 8000;
+
   const callUpstream = async (url: string) => {
-    const response = await wrapHttpCall(() => fetch(url), `fetch:${url}`);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+    const response = await wrapHttpCall(
+      () => fetch(url, { signal: controller.signal }),
+      `fetch:${url}`
+    );
+    clearTimeout(timer);
     if (!response) {
       return null;
     }

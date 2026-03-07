@@ -32,6 +32,7 @@ export const createPortfolioRouter = (): Router => {
         url,
         params: req.query,
         data: body,
+        timeout: 8000,
       });
       res.json(response.data);
     } catch (error: any) {

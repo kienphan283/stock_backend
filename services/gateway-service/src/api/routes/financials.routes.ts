@@ -68,10 +68,13 @@ export const createFinancialsRouter = (): Router => {
         });
 
         const fullUrl = `${baseUrl}/api/financials?${params}`;
+        const abortController = new AbortController();
+        const abortTimer = setTimeout(() => abortController.abort(), 8000);
         const response = await wrapHttpCall(
-          () => fetch(fullUrl),
+          () => fetch(fullUrl, { signal: abortController.signal }),
           `fetch:${fullUrl}`
         );
+        clearTimeout(abortTimer);
         if (!response) {
           return res.status(502).json({
             success: false,
