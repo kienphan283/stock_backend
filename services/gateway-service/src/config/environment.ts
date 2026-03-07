@@ -40,7 +40,7 @@ const envSchema = z.object({
     .enum(["development", "production", "test"])
     .default("development"),
 
-  MARKET_API_URL: z.string().url().default("http://localhost:8000"),
+  MARKET_API_URL: z.string().default("http://localhost:8000"),
 
   MARKET_API_TIMEOUT: z
     .string()
