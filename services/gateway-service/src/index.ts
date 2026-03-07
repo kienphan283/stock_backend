@@ -111,11 +111,12 @@ const startServer = () => {
   const { app, httpServer, socketService } = createApp();
   const PORT = config.port;
 
-  httpServer.listen(PORT, () => {
-    logger.success(`🚀 Gateway service running on port ${PORT}`);
+  // Explicitly bind to 0.0.0.0 so Railway's IPv4 load balancer can reach the container.
+  // Without a host, Node.js may bind to '::' (IPv6-only) in Alpine, causing 502.
+  httpServer.listen(PORT, "0.0.0.0", () => {
+    logger.success(`🚀 Gateway service running on port ${PORT} (0.0.0.0)`);
     logger.info(`📝 Environment: ${config.nodeEnv}`);
 
-    // Log ra để kiểm tra xem đang nhận cấu hình gì
     const originLog = config.corsOrigins.includes("*")
       ? "Allow ALL (Reflect Origin)"
       : config.corsOrigins.join(", ");
@@ -125,6 +126,17 @@ const startServer = () => {
     logger.info(`📡 WebSocket: Enabled`);
   });
 };
+
+// Global crash handlers — ensure all crashes appear in Railway logs
+process.on("uncaughtException", (err) => {
+  console.error("[FATAL] Uncaught Exception:", err);
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[FATAL] Unhandled Promise Rejection:", reason);
+  process.exit(1);
+});
 
 // Start the server
 startServer();
