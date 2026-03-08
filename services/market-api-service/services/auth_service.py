@@ -46,14 +46,8 @@ class AuthService:
         return pwd_context.verify(plain_password, hashed_password)
 
     async def send_verification_email(self, email: str, otp: str):
-        # VERBOSE DEBUG LOGGING
-        logger.info(f"--- DEBUG SMTP START ---")
-        logger.info(f"Settings: USER='{settings.MAIL_USERNAME}' SERVER='{settings.MAIL_SERVER}' PORT={settings.MAIL_PORT}")
-        logger.info(f"Password Check: {'Fail (None)' if not settings.MAIL_PASSWORD else f'OK (Len={len(settings.MAIL_PASSWORD)})'}")
-        
-        # Re-initialize conf here to be absolutely sure we catch runtime env changes
         try:
-             local_conf = ConnectionConfig(
+            local_conf = ConnectionConfig(
                 MAIL_USERNAME=settings.MAIL_USERNAME,
                 MAIL_PASSWORD=settings.MAIL_PASSWORD,
                 MAIL_FROM=settings.MAIL_FROM or settings.MAIL_USERNAME,
@@ -64,16 +58,12 @@ class AuthService:
                 USE_CREDENTIALS=True,
                 VALIDATE_CERTS=True
             )
-             logger.info("Config Object Created Successfully")
-             print(f"DEBUG: Config created. Server={settings.MAIL_SERVER}, User={settings.MAIL_USERNAME}") # DIRECT PRINT
         except Exception as e:
-            logger.error(f"Config Creation Failed: {e}")
+            logger.error(f"SMTP config initialization failed: {e}")
             local_conf = None
 
         if not local_conf:
-            logger.error("CRITICAL: SMTP Config is None. Falling back to MOCK.")
-            logger.warning("SMTP not configured or failed to initialize. Skipping email sending.")
-            logger.info(f"MOCK OTP CODE: {otp}")
+            logger.warning("SMTP not configured. Skipping email sending.")
             return
 
         message = MessageSchema(
@@ -89,12 +79,11 @@ class AuthService:
         )
 
         try:
-            logger.info(f"Attempting to send email to {email}...")
             fm = FastMail(local_conf)
             await fm.send_message(message)
-            logger.info("--- EMAIL SENT SUCCESSFULLY ---")
+            logger.info(f"Verification email sent to {email}")
         except Exception as e:
-            logger.error(f"--- EMAIL SENDING FAILED: {e} ---")
+            logger.error(f"Failed to send verification email to {email}: {e}")
 
     async def register_user(self, email: str, password: str, full_name: Optional[str] = None, background_tasks: BackgroundTasks = None) -> Dict[str, Any]:
         existing_user = self.repo.get_user_by_email(email)
@@ -249,73 +238,80 @@ class AuthService:
             return response.json()
 
     async def login_with_oauth(self, provider: str, token: str) -> Dict[str, Any]:
-        if provider == "google":
-            user_info = await self.verify_google_token(token)
-            email = user_info.get("email")
-            provider_user_id = user_info.get("sub")
-            full_name = user_info.get("name")
-            avatar_url = user_info.get("picture")
-        elif provider == "facebook":
-            user_info = await self.verify_facebook_token(token)
-            email = user_info.get("email")
-            provider_user_id = user_info.get("id")
-            full_name = user_info.get("name")
-            avatar_url = user_info.get("picture", {}).get("data", {}).get("url")
-        else:
-            raise HTTPException(status_code=400, detail="Unsupported provider")
+        try:
+            if provider == "google":
+                user_info = await self.verify_google_token(token)
+                email = user_info.get("email")
+                provider_user_id = user_info.get("sub")
+                full_name = user_info.get("name")
+                avatar_url = user_info.get("picture")
+            elif provider == "facebook":
+                user_info = await self.verify_facebook_token(token)
+                email = user_info.get("email")
+                provider_user_id = user_info.get("id")
+                full_name = user_info.get("name")
+                avatar_url = user_info.get("picture", {}).get("data", {}).get("url")
+            else:
+                raise HTTPException(status_code=400, detail="Unsupported provider")
 
-        if not email:
-            raise HTTPException(status_code=400, detail="Email not provided by provider")
+            if not email:
+                raise HTTPException(status_code=400, detail="Email not provided by provider")
 
-        # Fallback name if missing
-        if not full_name:
-            full_name = email.split("@")[0]
+            # Fallback name if missing
+            if not full_name:
+                full_name = email.split("@")[0]
 
-        # Check update or create user
-        user = self.repo.get_user_by_email(email)
-        updates = {}
-        
-        if not user:
-            user = self.repo.create_user(email, password_hash=None, full_name=full_name)
-            if avatar_url:
-                updates["avatar_url"] = avatar_url
-        else:
-            # Sync info for existing user
-            # Always update avatar if new one is from OAuth
-            if avatar_url and user.get("avatar_url") != avatar_url:
-                updates["avatar_url"] = avatar_url
+            # Check update or create user
+            user = self.repo.get_user_by_email(email)
+            updates = {}
             
-            # Update name if missing in DB
-            if full_name and not user.get("full_name"):
-                 updates["full_name"] = full_name
-        
-        if updates:
-             updated_user = self.repo.update_user_profile(user['user_id'], updates)
-             if updated_user:
-                 user.update(updated_user)
+            if not user:
+                user = self.repo.create_user(email, password_hash=None, full_name=full_name)
+                if not user:
+                    raise HTTPException(status_code=500, detail="Failed to create user account")
+                if avatar_url:
+                    updates["avatar_url"] = avatar_url
+            else:
+                # Sync info for existing user
+                # Always update avatar if new one is from OAuth
+                if avatar_url and user.get("avatar_url") != avatar_url:
+                    updates["avatar_url"] = avatar_url
+                
+                # Update name if missing in DB
+                if full_name and not user.get("full_name"):
+                    updates["full_name"] = full_name
+            
+            if updates:
+                updated_user = self.repo.update_user_profile(user['user_id'], updates)
+                if updated_user:
+                    user.update(updated_user)
 
-        # Link OAuth
-        self.repo.create_oauth_account(user["user_id"], provider, provider_user_id, token)
+            # Link OAuth
+            self.repo.create_oauth_account(user["user_id"], provider, provider_user_id, token)
 
-        # Generate Token
-        access_token_expires = timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = create_access_token(
-            data={"sub": str(user["user_id"]), "email": user["email"]},
-            secret_key=settings.JWT_SECRET,
-            algorithm=settings.JWT_ALGORITHM
-        )
+            # Generate Token
+            access_token = create_access_token(
+                data={"sub": str(user["user_id"]), "email": user["email"]},
+                secret_key=settings.JWT_SECRET,
+                algorithm=settings.JWT_ALGORITHM
+            )
 
-        return {
-            "access_token": access_token, 
-            "token_type": "bearer",
-            "user": {
-                "id": str(user["user_id"]),
-                "email": user["email"],
-                "full_name": user["full_name"],
-                "avatar_url": user.get("avatar_url"),
-                "is_verified": user.get("is_verified", False)
+            return {
+                "access_token": access_token,
+                "token_type": "bearer",
+                "user": {
+                    "id": str(user["user_id"]),
+                    "email": user["email"],
+                    "full_name": user["full_name"],
+                    "avatar_url": user.get("avatar_url"),
+                    "is_verified": user.get("is_verified", True)
+                }
             }
-        }
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"OAuth login error for provider={provider}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"OAuth login failed: {type(e).__name__}: {e}")
         
     def update_profile(self, user_id: str, updates: Dict[str, Any]):
         # Preventupdating restricted fields here if needed, e.g email
@@ -393,11 +389,9 @@ class AuthService:
                 )
                 fm = FastMail(local_conf)
                 await fm.send_message(message)
-                logger.info("--- RESET PASSWORD EMAIL SENT ---")
+                logger.info(f"Password reset email sent to {email}")
             except Exception as e:
-                logger.error(f"--- RESET EMAIL FAILED: {e} ---")
-                # Mock if failed
-                logger.info(f"MOCK RESET OTP: {otp}")
+                logger.error(f"Failed to send password reset email to {email}: {e}")
 
         if background_tasks:
             background_tasks.add_task(send_email_task)

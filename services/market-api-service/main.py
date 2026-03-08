@@ -1,7 +1,7 @@
 # SERVICE BOUNDARY: This service must NOT read Kafka or Redis Streams.
 # It can access Postgres and Redis Cache only.
 
-from fastapi import FastAPI, Request as FastAPIRequest
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routers import (
     quote_router,
@@ -30,9 +30,6 @@ validate_env(["DB_PASSWORD"])
 
 logger = get_logger(__name__)
 
-# DEBUG: Check SMTP Settings
-print(f"DEBUG SMTP: SERVER={settings.MAIL_SERVER}, PORT={settings.MAIL_PORT}, USER={settings.MAIL_USERNAME}, PASS_LEN={len(settings.MAIL_PASSWORD) if settings.MAIL_PASSWORD else 0}")
-
 
 app = FastAPI(
     title="Market Data API",
@@ -59,18 +56,6 @@ async def startup_event():
         pass
     except Exception as e:
         logger.error(f"Startup migration failed: {e}")
-
-@app.middleware("http")
-async def log_requests(request: FastAPIRequest, call_next):
-    logger.info(f"Incoming Request: {request.method} {request.url}")
-    auth = request.headers.get("Authorization")
-    if auth:
-        logger.info(f"Authorization Header: {auth[:20]}...") # Log start of token
-    else:
-        logger.info("Authorization Header: MISSING")
-    
-    response = await call_next(request)
-    return response
 
 # Include Routers (removed financials_legacy_router)
 app.include_router(quote_router.router)

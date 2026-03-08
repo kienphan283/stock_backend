@@ -173,8 +173,6 @@ export const createAuthRouter = (): Router => {
             // But we need to make sure we forward the Authorization header too/instead?
             // Backend auth_router.update_profile might inspect different things.
             // For now, let's just proxy with body and headers.
-            console.log("DEBUG GATEWAY INCOMING HEADERS:", JSON.stringify(req.headers)); // DEBUG LOG
-
 
             const url = `${baseUrl}/api/auth/profile`;
             const headers: Record<string, string> = { "Content-Type": "application/json" };

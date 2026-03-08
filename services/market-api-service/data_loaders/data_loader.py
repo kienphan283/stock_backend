@@ -144,18 +144,12 @@ class StockDataLoader:
                 eps = 0.0
                 if df is not None and not df.empty:
                     # Column names in CSV are lower case: ticker,current_price,change,percent_change,high,low,open,previous_close,pe,eps
-                    print(f"[DEBUG] Loaded stock_quote.csv with {len(df)} rows")
                     row = df[df['ticker'] == self.ticker]
                     if not row.empty:
                         pe_raw = row.iloc[0].get('pe', 0)
                         eps_raw = row.iloc[0].get('eps', 0)
-                        print(f"[DEBUG] Found {self.ticker} in CSV. Raw PE: {pe_raw}, Raw EPS: {eps_raw}")
                         pe = self._format_number(pe_raw)
                         eps = self._format_number(eps_raw)
-                    else:
-                        print(f"[DEBUG] Ticker {self.ticker} NOT found in stock_quote.csv. Available tickers: {df['ticker'].tolist()[:5]}...")
-                else:
-                    print(f"[DEBUG] stock_quote.csv is None or empty in {self.data_dir}")
 
                 return {
                     "name": result['name'],
@@ -313,16 +307,10 @@ class StockDataLoader:
                      if not row_quote.empty:
                          pe_val = row_quote.iloc[0].get('pe', 0)
                          eps_val = row_quote.iloc[0].get('eps', 0)
-                         logger.warning(f"[DEBUG] Found match for {target_ticker}. PE: {pe_val}, EPS: {eps_val}")
                          result["pe"] = self._format_number(pe_val)
                          result["eps"] = self._format_number(eps_val)
-                     else:
-                         logger.warning(f"[DEBUG] No match found for {target_ticker} in stock_quote.csv")
-                 else:
-                     logger.warning("[DEBUG] stock_quote.csv is None or empty")
             except Exception as e:
-                 logger.error(f"[DEBUG] Error enriching profile with CSV: {e}")
-                 pass
+                 logger.error(f"Error enriching profile with CSV data: {e}")
             
             return result
 
